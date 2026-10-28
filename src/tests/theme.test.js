@@ -1,5 +1,12 @@
 'use strict';
 
+// Isolated fake payment details for this test process; never production wallets.
+process.env.THEME_PAYMENT_WHATSAPP = '201000000000';
+process.env.THEME_PAYMENT_PAYEE_NAME = 'OSCAR TEST PAYEE';
+process.env.THEME_PAYMENT_BINANCE_ID = 'TEST-BINANCE-ID';
+process.env.THEME_PAYMENT_TRC20_ADDRESS = 'TEST-TRC20-DESTINATION';
+process.env.THEME_PAYMENT_BEP20_ADDRESS = 'TEST-BEP20-DESTINATION';
+
 const jwt = require('jsonwebtoken');
 const { connectTestDB, disconnectTestDB, clearCollections, createCustomerWithGroup, createAdmin } = require('./testHelpers');
 const { ThemeSettings, ThemeHistory } = require('../modules/theme/theme.model');
@@ -160,6 +167,9 @@ test('free publishing permits separate light and dark colors but locks premium f
     const free = preset('classic');
     free.modes.dark = preset('warm').modes.dark;
     expect((await request('/api/admin/theme/publish', admin, 'POST', free)).status).toBe(200);
+    const sidebarDimensions = preset('classic');
+    sidebarDimensions.brand.sidebarMetrics.width = 320;
+    expect((await request('/api/admin/theme/publish', admin, 'POST', sidebarDimensions)).body.code).toBe('THEME_ULTRA_REQUIRED');
     const proFont = preset('classic');
     proFont.modes.dark.typography.arabicFont = 'Changa';
     expect((await request('/api/admin/theme/publish', admin, 'POST', proFont)).body.code).toBe('THEME_PRO_REQUIRED');
@@ -201,7 +211,7 @@ test('manual USDT order stays pending until independently confirmed and cannot b
     expect(response.body.data.amount).toBe('24.99');
     expect(response.body.data.currency).toBe('USDT');
     expect(response.body.data.durationCalendarMonths).toBe(3);
-    expect(response.body.data.whatsappUrl).toContain('wa.me/201019603238');
+    expect(response.body.data.whatsappUrl).toContain('wa.me/201000000000');
     expect(decodeURIComponent(response.body.data.whatsappUrl)).toContain(response.body.data.reference);
     expect((await theme.getStatus()).eligibility.plan).toBe('FREE');
     await expect(manualPayment.confirmReceived({ reference: response.body.data.reference, network: 'TRC20',
@@ -253,10 +263,34 @@ test('Ultra direct purchase unlocks templates and retains Pro image-upload acces
     expect((await theme.getStatus()).eligibility.plan).toBe('THEME_ULTRA');
     const configuration = preset('gold');
     configuration.brand.sidebarTemplate = 'royal';
+    configuration.brand.sidebarMetrics = { width: 320, height: 90, radius: 40 };
     expect((await theme.publish(admin._id, configuration)).published.brand.sidebarTemplate).toBe('royal');
+    expect((await theme.published()).published.brand.sidebarMetrics).toEqual({ width: 320, height: 90, radius: 40 });
     // A missing file must reach upload validation, rather than the Pro-only gate.
     const response = await request('/api/admin/theme/media/upload', admin, 'POST', {});
     expect(response.status).not.toBe(403);
+});
+
+test('ULTRA header, bottom navigation, and sidebar publish through the public theme API', async () => {
+    const admin = await createAdmin();
+    await activatePlan(admin, 'THEME_ULTRA');
+    const configuration = preset('gold');
+    configuration.brand.sidebarTemplate = 'aurora';
+    configuration.chrome.header = { ...configuration.chrome.header, template: 'floating', height: 88,
+        width: 92, background: '#FFFFFF', foreground: '#0F172A', accent: '#2563EB', radius: 16 };
+    configuration.chrome.bottomNav = { ...configuration.chrome.bottomNav, template: 'pill', height: 72,
+        width: 88, background: '#FFFFFF', foreground: '#0F172A', accent: '#2563EB', radius: 24 };
+
+    const published = await request('/api/admin/theme/publish', admin, 'POST', configuration);
+    expect(published.status).toBe(200);
+    const publicTheme = await fetch(`${baseUrl}/api/theme/published`).then((response) => response.json());
+    expect(publicTheme.data.published).toMatchObject({
+        brand: { sidebarTemplate: 'aurora' },
+        chrome: {
+            header: expect.objectContaining({ template: 'floating', height: 88, width: 92, radius: 16 }),
+            bottomNav: expect.objectContaining({ template: 'pill', height: 72, width: 88, radius: 24 }),
+        },
+    });
 });
 
 test('Pro upgrades for 5 USDT, keeps the original expiry and returns Ultra entitlement', async () => {
@@ -495,7 +529,7 @@ test('payment status shows only the signed-in administrator’s transfer orders'
 
 test('ULTRA WhatsApp settings are locked on free and persist only after activation', async () => {
     const admin = await createAdmin();
-    const value = { owner: '+201286591021', support: '+201556537530' };
+    const value = { owner: '+201000000001', support: '+201000000002' };
     const locked = await request('/api/admin/settings/supportContacts', admin, 'PATCH', { value });
     expect(locked.status).toBe(403);
     expect(locked.body.code).toBe('THEME_ULTRA_REQUIRED');
@@ -504,12 +538,17 @@ test('ULTRA WhatsApp settings are locked on free and persist only after activati
     const contacts = await request('/api/admin/settings/supportContacts', admin, 'PATCH', { value });
     expect(contacts.status).toBe(200);
     expect((await Setting.findOne({ key: 'supportContacts' }).lean()).value).toEqual(value);
+    const publicSettings = await fetch(`${baseUrl}/api/settings/payment`).then((response) => response.json());
+    expect(publicSettings.data.supportContacts).toEqual(value);
 
     const notification = await request('/api/admin/settings/adminNotificationWhatsApp', admin, 'PATCH', {
-        value: '+201019603238',
+        value: '+201000000003',
     });
     expect(notification.status).toBe(200);
-    expect((await Setting.findOne({ key: 'adminNotificationWhatsApp' }).lean()).value).toBe('+201019603238');
+    expect((await Setting.findOne({ key: 'adminNotificationWhatsApp' }).lean()).value).toBe('+201000000003');
+    const status = await request('/api/admin/whatsapp/status', admin);
+    expect(status.status).toBe(200);
+    expect(status.body.data.adminNumberConfigured).toBe(true);
 });
 
 test('verified Pro admin can upload and publish a logo with a premium preset', async () => {
@@ -537,6 +576,11 @@ test('verified Pro admin can upload and publish a logo with a premium preset', a
     expect(uploaded.status).toBe(200);
     const logoPath = (await uploaded.json()).data.path;
     try {
+        const uploadedImage = await fetch(`${baseUrl}${logoPath}`);
+        expect(uploadedImage.status).toBe(200);
+        expect(uploadedImage.headers.get('content-type')).toMatch(/^image\/png/);
+        expect(Buffer.from(await uploadedImage.arrayBuffer())).toEqual(bytes);
+
         const configuration = preset('gold');
         configuration.modes.dark = preset('silver').modes.dark;
         configuration.brand.logoPath = logoPath;

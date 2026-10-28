@@ -47,6 +47,7 @@ const baseChrome = () => ({
     header: { template: 'bar', height: 64, width: 100, background: '#FFFFFF', foreground: '#0F172A', accent: '#2563EB', radius: 0 },
     bottomNav: { template: 'bar', height: 64, width: 100, background: '#FFFFFF', foreground: '#0F172A', accent: '#2563EB', radius: 0 },
 });
+const baseSidebarMetrics = () => ({ width: 270, height: 100, radius: 28 });
 const validateChromePart = (value, path, templateValues, radiusValues, heightRange, widthRange) => {
     keysOnly(value, ['template', 'height', 'width', 'background', 'foreground', 'accent', 'radius'], path);
     if (!templateValues.includes(value.template) || !Number.isInteger(value.height)
@@ -127,12 +128,22 @@ function validateTheme(value) {
     if (value.schemaVersion !== 2) invalid('schemaVersion');
     keysOnly(value.modes,['light','dark'],'modes');
     const modes = { light: validateAppearance(value.modes.light,'modes.light'), dark: validateAppearance(value.modes.dark,'modes.dark') };
-    keysOnly(value.brand,['logoPath','logoWidth','slides','marqueeTextArabic','targetBannerPath','sidebarTemplate'],'brand');
+    keysOnly(value.brand,['logoPath','logoWidth','slides','marqueeTextArabic','targetBannerPath','sidebarTemplate','sidebarMetrics'],'brand');
     const { logoPath,logoWidth,slides } = value.brand;
     const targetBannerPath = value.brand.targetBannerPath === undefined ? null : value.brand.targetBannerPath;
     const marqueeTextArabic = value.brand.marqueeTextArabic === undefined
         ? DEFAULT_MARQUEE_AR : value.brand.marqueeTextArabic;
     const sidebarTemplate = value.brand.sidebarTemplate === undefined ? 'default' : value.brand.sidebarTemplate;
+    const inputSidebarMetrics = value.brand.sidebarMetrics === undefined ? baseSidebarMetrics() : value.brand.sidebarMetrics;
+    keysOnly(inputSidebarMetrics, ['width', 'height', 'radius'], 'brand.sidebarMetrics');
+    const sidebarMetrics = {
+        width: inputSidebarMetrics.width,
+        height: inputSidebarMetrics.height,
+        radius: inputSidebarMetrics.radius,
+    };
+    if (!Number.isInteger(sidebarMetrics.width) || sidebarMetrics.width < 220 || sidebarMetrics.width > 360
+        || !Number.isInteger(sidebarMetrics.height) || sidebarMetrics.height < 70 || sidebarMetrics.height > 100
+        || ![0,4,8,12,16,20,24,28,32,36,40,44,48].includes(sidebarMetrics.radius)) invalid('brand.sidebarMetrics');
     const inputChrome = value.chrome === undefined ? baseChrome() : value.chrome;
     keysOnly(inputChrome, ['header', 'bottomNav'], 'chrome');
     const chrome = {
@@ -149,7 +160,8 @@ function validateTheme(value) {
         || !/[\u0600-\u06FF]/u.test(marqueeTextArabic)
         || /[<>\u0000-\u001F\u007F]/u.test(marqueeTextArabic)) invalid('brand.marqueeTextArabic');
     if (!['default', 'royal', 'glass', 'aurora', 'square', 'rounded'].includes(sidebarTemplate)) invalid('brand.sidebarTemplate');
-    return { schemaVersion: 2, modes, brand: { logoPath, logoWidth, slides: [...slides], marqueeTextArabic, targetBannerPath, sidebarTemplate }, chrome };
+    return { schemaVersion: 2, modes, brand: { logoPath, logoWidth, slides: [...slides], marqueeTextArabic,
+        targetBannerPath, sidebarTemplate, sidebarMetrics }, chrome };
 }
 
 function preset(id) {
@@ -194,7 +206,10 @@ function assertPlanAllows(theme, plan = 'FREE') {
             throw new AppError('Brand and animated text changes require Theme Customization Pro.',403,'THEME_PRO_REQUIRED');
         }
     }
-    if (theme.brand.sidebarTemplate !== 'default') throw new AppError('Sidebar templates require Theme Customization Ultra.', 403, 'THEME_ULTRA_REQUIRED');
+    if (theme.brand.sidebarTemplate !== 'default'
+        || JSON.stringify(theme.brand.sidebarMetrics) !== JSON.stringify(baseSidebarMetrics())) {
+        throw new AppError('Sidebar templates and dimensions require Theme Customization Ultra.', 403, 'THEME_ULTRA_REQUIRED');
+    }
 }
 
 module.exports = { validateTheme,safeTheme,preset,allowed,assertPlanAllows,FREE_PRESETS,PRO_PRESETS,DEFAULT_MARQUEE_AR };

@@ -16,13 +16,19 @@ const offers = Object.freeze({
 const amount = offers.THEME_PRO.amount;
 const chargeFor = (offer, isUpgrade = false) => isUpgrade && offer.id === 'THEME_ULTRA'
     ? { ...offer, amount: '5.00', amountMinor: 500, isUpgrade: true } : { ...offer, isUpgrade: false };
-const whatsapp = '201019603238';
+const whatsapp = String(process.env.THEME_PAYMENT_WHATSAPP || '').replace(/[^\d]/g, '');
 const destinations = Object.freeze({
-    BINANCE_ID: '202657125',
-    TRC20: 'TLDFTsLDpk9GkeSiD9oLUJuBJ4FZW8cU5b',
-    BEP20: '0x5882e7536635340790eb9c33e6e914e0d3499b52',
+    BINANCE_ID: String(process.env.THEME_PAYMENT_BINANCE_ID || '').trim(),
+    TRC20: String(process.env.THEME_PAYMENT_TRC20_ADDRESS || '').trim(),
+    BEP20: String(process.env.THEME_PAYMENT_BEP20_ADDRESS || '').trim(),
 });
-const payeeName = 'ENG-SHARKAWY';
+const payeeName = String(process.env.THEME_PAYMENT_PAYEE_NAME || '').trim();
+const isPaymentConfigured = () => Boolean(whatsapp && payeeName && Object.values(destinations).some(Boolean));
+const requirePaymentConfig = (network) => {
+    if (!whatsapp || !payeeName || !destinations[network]) {
+        throw new AppError('Manual theme payment is not configured for this network.', 503, 'THEME_PAYMENT_CONFIG_MISSING');
+    }
+};
 const CODE_LIFETIME_MS = 48 * 60 * 60 * 1000;
 const makeCode = () => String(crypto.randomInt(0, 10_000_000_000)).padStart(10, '0');
 const hashCode = (code, salt) => crypto.scryptSync(code, salt, 32).toString('hex');
@@ -65,12 +71,15 @@ async function deliverActivationCode({ paymentId, payerPhone, reference, code, o
 }
 
 const instructions = () => ({ offers: Object.values(offers).map((offer) => ({ ...offer, currency: 'USDT', recurring: false })),
-    amount, currency: 'USDT', amountMinor: 2499, durationCalendarMonths: 3, recurring: false, whatsapp, payeeName, destinations,
+    amount, currency: 'USDT', amountMinor: 2499, durationCalendarMonths: 3, recurring: false,
+    available: isPaymentConfigured(), whatsapp: whatsapp || null, payeeName: payeeName || null,
+    destinations: Object.fromEntries(Object.entries(destinations).filter(([, destination]) => Boolean(destination))),
     activationCodeHours: 48,
     proof: 'Send the transfer screenshot and order reference in WhatsApp. After receipt is verified, the server sends a one-time 10-digit code to the payer WhatsApp number; it is valid for 48 hours.' });
 
 async function createOrder(payerUserId, network, planId = 'THEME_PRO') {
     if (!Object.hasOwn(destinations, network)) throw new ValidationError('Unsupported USDT transfer network.');
+    requirePaymentConfig(network);
     const offer = Object.hasOwn(offers, planId) ? offers[planId] : null;
     if (!offer) throw new ValidationError('Unsupported theme subscription plan.');
     const status = await themeService.getStatus();

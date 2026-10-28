@@ -93,8 +93,8 @@ const setLastError = (err) => {
         : null;
 };
 
-const normalizeAdminChatId = () => {
-    const rawNumber = String(process.env.ADMIN_NOTIFICATION_NUMBER || '').trim();
+const normalizeAdminChatId = (number = process.env.ADMIN_NOTIFICATION_NUMBER) => {
+    const rawNumber = String(number || '').trim();
     if (!rawNumber) return null;
 
     const normalized = rawNumber.replace(/[^\d]/g, '');
@@ -117,7 +117,7 @@ const getBrowserPid = (browser) => {
     }
 };
 
-const getStatus = () => {
+const getStatus = ({ adminNotificationNumber } = {}) => {
     const qrDataUrl = currentState === WHATSAPP_STATE.QR_READY ? currentQrDataUrl : null;
     const isReady = currentState === WHATSAPP_STATE.CONNECTED;
 
@@ -134,7 +134,7 @@ const getStatus = () => {
         lastError,
         lastConnectedAt,
         lastDisconnectedAt,
-        adminNumberConfigured: Boolean(normalizeAdminChatId()),
+        adminNumberConfigured: Boolean(normalizeAdminChatId(adminNotificationNumber)),
         dependencyAvailable: Boolean(Client && LocalAuth),
         autoReconnectEnabled: automaticReconnectEnabled,
     };
