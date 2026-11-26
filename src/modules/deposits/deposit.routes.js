@@ -10,6 +10,7 @@ const {
 } = require('./deposit.validation');
 const validate = require('../../shared/middlewares/validate');
 const authenticate = require('../../shared/middlewares/authenticate');
+const auditPrivilegedMutation = require('../../shared/middlewares/auditPrivilegedMutation');
 const authorize = require('../../shared/middlewares/authorize');
 const requirePermission = require('../../shared/middlewares/requirePermission');
 const requireActiveUser = require('../../shared/middlewares/requireActiveUser');
@@ -21,6 +22,7 @@ const router = Router();
 
 // All deposit routes require a valid JWT
 router.use(authenticate);
+router.use(auditPrivilegedMutation);
 
 // ─── Customer Routes ──────────────────────────────────────────────────────────
 

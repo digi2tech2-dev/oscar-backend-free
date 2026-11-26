@@ -11,6 +11,9 @@ const { BaseProviderAdapter } = require('../modules/providers/adapters/base.adap
 const { Provider } = require('../modules/providers/provider.model');
 const { spawnSync } = require('node:child_process');
 const crypto = require('node:crypto');
+const axios = require('axios');
+const { createProviderHttpClient } = require('../shared/security/providerHttp');
+const { sealBackup, openBackup, prepareProviderMigration, assertStagingDatabase } = require('../shared/security/providerCredentialMigration');
 
 describe('supplier destination policy', () => {
     afterEach(() => { delete process.env.TRUSTED_PROVIDER_HOSTS; });
@@ -51,10 +54,67 @@ describe('supplier destination policy', () => {
         }));
     });
 
+    test('DNS rebinding from public to private is rejected before a new socket connects', async () => {
+        let resolution = 0;
+        const resolver = { lookup: (_host, _options, callback) => {
+            resolution += 1;
+            callback(null, [{ address: resolution === 1 ? '8.8.8.8' : '10.0.0.7', family: 4 }]);
+        } };
+        const lookup = createPinnedLookup('supplier.example', resolver, new Set(['supplier.example']));
+        const resolve = () => new Promise((done) => lookup('supplier.example', {}, (error) => done(error)));
+        expect(await resolve()).toBeNull();
+        expect(await resolve()).toBeTruthy();
+    });
+
+    test('provider HTTP client enforces redirects off, absolute URL rejection, no proxy, and TLS verification', () => {
+        process.env.TRUSTED_PROVIDER_HOSTS = 'supplier.example';
+        const createSpy = jest.spyOn(axios, 'create').mockReturnValue({ testClient: true });
+        try {
+            expect(createProviderHttpClient('https://supplier.example/api', { authorization: 'test-only' })).toEqual({ testClient: true });
+            const options = createSpy.mock.calls.at(-1)[0];
+            expect(options.maxRedirects).toBe(0);
+            expect(options.allowAbsoluteUrls).toBe(false);
+            expect(options.proxy).toBe(false);
+            expect(options.httpsAgent.options.rejectUnauthorized).toBe(true);
+        } finally {
+            createSpy.mockRestore();
+        }
+    });
+
     test('legacy credentials without a matching trusted host are never returned to adapters', () => {
         const adapter = Object.create(BaseProviderAdapter.prototype);
         adapter.provider = { baseUrl: 'https://new.example', credentialHost: 'old.example', apiToken: 'legacy-token' };
         expect(adapter._resolveToken()).toBeNull();
+    });
+});
+
+describe('provider credential migration safety', () => {
+    const key = crypto.randomBytes(32).toString('base64');
+    const encrypt = (value) => `enc:v1:test:${Buffer.from(value).toString('base64')}`;
+
+    test('migration is a dry plan and binds encrypted credentials to a trusted HTTPS host', () => {
+        const entry = prepareProviderMigration({ _id: 'provider-id', baseUrl: 'https://supplier.example/api', apiToken: 'sample-secret' }, {
+            trustedHosts: new Set(['supplier.example']), encrypt,
+        });
+        expect(entry.changed).toBe(true);
+        expect(entry.changes.apiToken).not.toContain('sample-secret');
+        expect(entry.changes.credentialHost).toBe('supplier.example');
+        expect(entry.previous.apiToken).toBe('sample-secret');
+    });
+
+    test('authenticated backup restores only when its independent key is correct', () => {
+        const envelope = sealBackup({ items: [{ providerId: 'p', previous: { apiToken: 'sample-secret' } }] }, key);
+        expect(openBackup(envelope, key).items[0].previous.apiToken).toBe('sample-secret');
+        expect(() => openBackup(envelope, crypto.randomBytes(32).toString('base64'))).toThrow();
+    });
+
+    test('migration blocks non-staging and production database targets', () => {
+        const staging = { NODE_ENV: 'staging', PROVIDER_MIGRATION_STAGING_HOSTS: 'stage.example', PROVIDER_MIGRATION_STAGING_DATABASE: 'staging' };
+        expect(() => assertStagingDatabase('mongodb+srv://stage.example/staging', { ...staging, NODE_ENV: 'production' })).toThrow(/NODE_ENV=staging/);
+        expect(() => assertStagingDatabase('mongodb+srv://stage.example/production', staging)).toThrow(/Production/);
+        expect(() => assertStagingDatabase('mongodb+srv://other.example/staging', staging)).toThrow(/STAGING_HOSTS/);
+        expect(() => assertStagingDatabase('mongodb+srv://stage.example/other', staging)).toThrow(/STAGING_DATABASE/);
+        expect(assertStagingDatabase('mongodb+srv://stage.example/staging', staging)).toBe(true);
     });
 });
 
@@ -85,6 +145,28 @@ describe('supplier credential protection and emergency control', () => {
         expect(executionGate.isEnabled()).toBe(false);
         expect(() => executionGate.assertEnabled()).toThrow(expect.objectContaining({ code: 'EXECUTION_EMERGENCY_STOP' }));
         delete process.env.FINANCIAL_EXECUTION_ENABLED;
+    });
+
+    test.each(['false', '0', 'no', 'off'])('emergency control treats %s as disabled', (value) => {
+        process.env.FINANCIAL_EXECUTION_ENABLED = value;
+        expect(executionGate.isEnabled()).toBe(false);
+        delete process.env.FINANCIAL_EXECUTION_ENABLED;
+    });
+
+    test('financial execution defaults off in production and on in local test mode', () => {
+        const previousEnvironment = process.env.NODE_ENV;
+        const previousExecution = process.env.FINANCIAL_EXECUTION_ENABLED;
+        try {
+            delete process.env.FINANCIAL_EXECUTION_ENABLED;
+            process.env.NODE_ENV = 'production';
+            expect(executionGate.isEnabled()).toBe(false);
+            process.env.NODE_ENV = 'test';
+            expect(executionGate.isEnabled()).toBe(true);
+        } finally {
+            process.env.NODE_ENV = previousEnvironment;
+            if (previousExecution === undefined) delete process.env.FINANCIAL_EXECUTION_ENABLED;
+            else process.env.FINANCIAL_EXECUTION_ENABLED = previousExecution;
+        }
     });
 
     test('production configuration rejects a weak JWT secret before startup', () => {

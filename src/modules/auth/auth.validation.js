@@ -70,7 +70,7 @@ const disable2FAValidation = [
 
 const verify2FAValidation = [
     body('tempToken')
-        .notEmpty().withMessage('Temporary token is required')
+        .optional()
         .isString().withMessage('Temporary token must be a string'),
 
     body('code')

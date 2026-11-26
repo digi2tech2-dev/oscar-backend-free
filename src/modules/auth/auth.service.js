@@ -41,6 +41,7 @@ const { USER_ACTIONS, ENTITY_TYPES, ACTOR_ROLES } = require('../audit/audit.cons
 // ─── Private Helpers ──────────────────────────────────────────────────────────
 
 const TWO_FACTOR_OTP_EXPIRY_MS = 5 * 60 * 1000;
+const MAX_TWO_FACTOR_OTP_ATTEMPTS = 5;
 
 /** Sign full-session JWT for a user. */
 const signToken = (userId, role, sessionVersion = 0) =>
@@ -83,7 +84,24 @@ const _hashToken = (raw) =>
     crypto.createHash('sha256').update(raw).digest('hex');
 
 const _hashOtp = (raw) =>
-    crypto.createHmac('sha256', config.jwt.secret).update(raw).digest('hex');
+    crypto.createHmac('sha256', config.security.twoFactorOtpPepper).update(raw).digest('hex');
+
+const _recordInvalidOtp = async (user) => {
+    const attempts = Number(user.twoFactorOtpAttempts || 0);
+    const filter = {
+        _id: user._id,
+        twoFactorOtp: user.twoFactorOtp,
+        twoFactorOtpExpires: user.twoFactorOtpExpires,
+        ...(attempts === 0
+            ? { $or: [{ twoFactorOtpAttempts: 0 }, { twoFactorOtpAttempts: { $exists: false } }] }
+            : { twoFactorOtpAttempts: attempts }),
+    };
+    const nextAttempts = attempts + 1;
+    const update = nextAttempts >= MAX_TWO_FACTOR_OTP_ATTEMPTS
+        ? { $set: { twoFactorOtp: null, twoFactorOtpExpires: null, twoFactorOtpAttempts: 0 } }
+        : { $set: { twoFactorOtpAttempts: nextAttempts } };
+    await User.updateOne(filter, update);
+};
 
 const _generateTwoFactorOtp = () =>
     crypto.randomInt(0, 1000000).toString().padStart(6, '0');
@@ -254,6 +272,7 @@ const login = async ({ email, password }) => {
 
         user.twoFactorOtp = _hashOtp(plainOtp);
         user.twoFactorOtpExpires = new Date(Date.now() + TWO_FACTOR_OTP_EXPIRY_MS);
+        user.twoFactorOtpAttempts = 0;
         await user.save();
 
         await emailService.sendTwoFactorOtpEmail(user, plainOtp);
@@ -393,6 +412,7 @@ const loginWithGoogle = async (user) => {
         const plainOtp = _generateTwoFactorOtp();
         user.twoFactorOtp = _hashOtp(plainOtp);
         user.twoFactorOtpExpires = new Date(Date.now() + TWO_FACTOR_OTP_EXPIRY_MS);
+        user.twoFactorOtpAttempts = 0;
         await user.save();
         await emailService.sendTwoFactorOtpEmail(user, plainOtp);
         createAuditLog({
@@ -442,6 +462,7 @@ const generate2FASecret = async (userId) => {
     const plainOtp = _generateTwoFactorOtp();
     user.twoFactorOtp = _hashOtp(plainOtp);
     user.twoFactorOtpExpires = new Date(Date.now() + TWO_FACTOR_OTP_EXPIRY_MS);
+    user.twoFactorOtpAttempts = 0;
     await user.save();
 
     await emailService.sendTwoFactorOtpEmail(user, plainOtp);
@@ -458,7 +479,7 @@ const generate2FASecret = async (userId) => {
  * @param {string} code
  */
 const enable2FA = async (userId, code) => {
-    const user = await User.findById(userId).select('+twoFactorOtp +twoFactorOtpExpires');
+    const user = await User.findById(userId).select('+twoFactorOtp +twoFactorOtpExpires +twoFactorOtpAttempts');
     if (!user) throw new NotFoundError('User');
 
     if (user.isTwoFactorEnabled) {
@@ -488,13 +509,21 @@ const enable2FA = async (userId, code) => {
     );
 
     if (!isValid) {
+        await _recordInvalidOtp(user);
         throw new AuthenticationError('Invalid 2FA setup code. Please try again.');
     }
 
-    user.isTwoFactorEnabled = true;
-    user.twoFactorOtp = null;
-    user.twoFactorOtpExpires = null;
-    await user.save();
+    const enabledUser = await User.findOneAndUpdate({
+        _id: user._id,
+        status: USER_STATUS.ACTIVE,
+        isTwoFactorEnabled: false,
+        twoFactorOtp: user.twoFactorOtp,
+        twoFactorOtpExpires: { $gt: new Date() },
+    }, {
+        $set: { isTwoFactorEnabled: true, twoFactorOtp: null, twoFactorOtpExpires: null, twoFactorOtpAttempts: 0 },
+        $inc: { sessionVersion: 1 },
+    }, { new: true });
+    if (!enabledUser) throw new AuthenticationError('2FA setup code was already used or expired. Please request a new code.');
 
     createAuditLog({
         actorId: user._id,
@@ -567,6 +596,9 @@ const disable2FA = async (userId, { password } = {}) => {
  * @returns {{ token: string, user: Object }}
  */
 const verify2FA = async (tempToken, code) => {
+    if (typeof tempToken !== 'string' || !tempToken) {
+        throw new AuthenticationError('Temporary token is required. Please restart sign-in.');
+    }
     // 1. Verify the temp token
     let decoded;
     try {
@@ -588,7 +620,7 @@ const verify2FA = async (tempToken, code) => {
     }
 
     // 2. Load user + pending email OTP
-    const user = await User.findById(decoded.id).select('+twoFactorOtp +twoFactorOtpExpires');
+    const user = await User.findById(decoded.id).select('+twoFactorOtp +twoFactorOtpExpires +twoFactorOtpAttempts');
     if (!user) {
         throw new AuthenticationError('The user belonging to this token no longer exists.');
     }
@@ -623,26 +655,35 @@ const verify2FA = async (tempToken, code) => {
     );
 
     if (!isValid) {
+        await _recordInvalidOtp(user);
         throw new AuthenticationError('Invalid 2FA code. Please try again.');
     }
 
-    user.twoFactorOtp = null;
-    user.twoFactorOtpExpires = null;
-    await user.save();
+    const verifiedUser = await User.findOneAndUpdate({
+        _id: user._id,
+        status: USER_STATUS.ACTIVE,
+        sessionVersion: decoded.sv,
+        isTwoFactorEnabled: true,
+        twoFactorOtp: user.twoFactorOtp,
+        twoFactorOtpExpires: { $gt: new Date() },
+    }, {
+        $set: { twoFactorOtp: null, twoFactorOtpExpires: null, twoFactorOtpAttempts: 0 },
+    }, { new: true });
+    if (!verifiedUser) throw new AuthenticationError('This 2FA code has expired or was already used. Please log in again.');
 
     // 4. Issue full JWT
-    const fullToken = signToken(user._id, user.role, user.sessionVersion || 0);
+    const fullToken = signToken(verifiedUser._id, verifiedUser.role, verifiedUser.sessionVersion || 0);
 
     createAuditLog({
-        actorId: user._id,
-        actorRole: ACTOR_ROLES[user.role] ?? user.role,
+        actorId: verifiedUser._id,
+        actorRole: ACTOR_ROLES[verifiedUser.role] ?? verifiedUser.role,
         action: USER_ACTIONS.LOGIN_SUCCESS,
         entityType: ENTITY_TYPES.USER,
-        entityId: user._id,
-        metadata: { email: user.email, twoFactorVerified: true },
+        entityId: verifiedUser._id,
+        metadata: { email: verifiedUser.email, twoFactorVerified: true },
     });
 
-    return { token: fullToken, user: user.toSafeObject() };
+    return { token: fullToken, user: verifiedUser.toSafeObject() };
 };
 
 module.exports = {

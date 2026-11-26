@@ -4,6 +4,7 @@ const { Router } = require('express');
 const mongoose = require('mongoose');
 const authenticate = require('../../shared/middlewares/authenticate');
 const authorize = require('../../shared/middlewares/authorize');
+const auditPrivilegedMutation = require('../../shared/middlewares/auditPrivilegedMutation');
 const catchAsync = require('../../shared/utils/catchAsync');
 const { sendSuccess } = require('../../shared/utils/apiResponse');
 const { ValidationError, NotFoundError } = require('../../shared/errors/AppError');
@@ -14,6 +15,7 @@ const ThemeAdminAudit = require('./theme.admin.model');
 
 const router = Router();
 router.use(authenticate, authorize('ADMIN'));
+router.use(auditPrivilegedMutation);
 const objectId = (value) => {
     if (!mongoose.isValidObjectId(value)) throw new ValidationError('Invalid user ID');
     return value;

@@ -571,7 +571,7 @@ describe('[8] adapter.factory — resolution', () => {
     it('resolves TorosfonAdapter by slug "toros"', () => {
         const adapter = getProviderAdapter({
             slug: 'toros', name: 'Torosfon Store',
-            baseUrl: 'https://x.com', apiToken: 'tok', credentialHost: 'x.com',
+            baseUrl: 'https://x.example', apiToken: 'tok', credentialHost: 'x.example',
         });
         expect(adapter).toBeInstanceOf(TorosfonAdapter);
     });
@@ -579,7 +579,7 @@ describe('[8] adapter.factory — resolution', () => {
     it('resolves TorosfonAdapter by slug "torosfon"', () => {
         const adapter = getProviderAdapter({
             slug: 'torosfon', name: 'Torosfon Store',
-            baseUrl: 'https://x.com', apiToken: 'tok', credentialHost: 'x.com',
+            baseUrl: 'https://x.example', apiToken: 'tok', credentialHost: 'x.example',
         });
         expect(adapter).toBeInstanceOf(TorosfonAdapter);
     });
@@ -587,7 +587,7 @@ describe('[8] adapter.factory — resolution', () => {
     it('resolves TorosfonAdapter by name "torosfon store" (no slug)', () => {
         const adapter = getProviderAdapter({
             slug: '', name: 'Torosfon Store',
-            baseUrl: 'https://x.com', apiToken: 'tok', credentialHost: 'x.com',
+            baseUrl: 'https://x.example', apiToken: 'tok', credentialHost: 'x.example',
         });
         expect(adapter).toBeInstanceOf(TorosfonAdapter);
     });
@@ -595,7 +595,7 @@ describe('[8] adapter.factory — resolution', () => {
     it('resolves AlkasrVipAdapter by slug "alkasr-vip"', () => {
         const adapter = getProviderAdapter({
             slug: 'alkasr-vip', name: 'Alkasr VIP',
-            baseUrl: 'https://x.com', apiToken: 'tok', credentialHost: 'x.com',
+            baseUrl: 'https://x.example', apiToken: 'tok', credentialHost: 'x.example',
         });
         expect(adapter).toBeInstanceOf(AlkasrVipAdapter);
     });
@@ -603,7 +603,7 @@ describe('[8] adapter.factory — resolution', () => {
     it('resolves AlkasrVipAdapter by slug "alkasr"', () => {
         const adapter = getProviderAdapter({
             slug: 'alkasr', name: 'Alkasr VIP',
-            baseUrl: 'https://x.com', apiToken: 'tok', credentialHost: 'x.com',
+            baseUrl: 'https://x.example', apiToken: 'tok', credentialHost: 'x.example',
         });
         expect(adapter).toBeInstanceOf(AlkasrVipAdapter);
     });
@@ -611,7 +611,7 @@ describe('[8] adapter.factory — resolution', () => {
     it('resolves AlkasrVipAdapter by name "alkasr vip" (no slug)', () => {
         const adapter = getProviderAdapter({
             slug: '', name: 'Alkasr VIP',
-            baseUrl: 'https://x.com', apiToken: 'tok', credentialHost: 'x.com',
+            baseUrl: 'https://x.example', apiToken: 'tok', credentialHost: 'x.example',
         });
         expect(adapter).toBeInstanceOf(AlkasrVipAdapter);
     });
@@ -619,21 +619,21 @@ describe('[8] adapter.factory — resolution', () => {
     it('resolves RoyalCrownAdapter by slug "royal-crown"', () => {
         const adapter = getProviderAdapter({
             slug: 'royal-crown', name: 'Royal Crown',
-            baseUrl: 'https://x.com', apiToken: 'tok', credentialHost: 'x.com',
+            baseUrl: 'https://x.example', apiToken: 'tok', credentialHost: 'x.example',
         });
         expect(adapter).toBeInstanceOf(RoyalCrownAdapter);
     });
 
     it('falls back to MockProviderAdapter for unknown slug (non-strict)', () => {
         const { MockProviderAdapter } = require('../modules/providers/adapters/mock.adapter');
-        const adapter = getProviderAdapter({ slug: 'unknown-x', name: 'Random', baseUrl: 'https://x.com', apiToken: 'tok' });
+        const adapter = getProviderAdapter({ slug: 'unknown-x', name: 'Random', baseUrl: 'https://x.example', apiToken: 'tok' });
         expect(adapter).toBeInstanceOf(MockProviderAdapter);
     });
 
     it('throws UNSUPPORTED_PROVIDER in strict mode for unknown provider', () => {
         expect(() =>
             getProviderAdapter(
-                { slug: 'ghost', name: 'Ghost', baseUrl: 'https://x.com', apiToken: 'tok' },
+                { slug: 'ghost', name: 'Ghost', baseUrl: 'https://x.example', apiToken: 'tok' },
                 { strict: true }
             )
         ).toThrow(/UNSUPPORTED_PROVIDER/);
@@ -644,7 +644,7 @@ describe('[8] adapter.factory — resolution', () => {
         registerAdapter('custom-provider', MockProviderAdapter);
         const adapter = getProviderAdapter({
             slug: 'custom-provider', name: 'Custom',
-            baseUrl: 'https://x.com', apiToken: 'tok',
+            baseUrl: 'https://x.example', apiToken: 'tok',
         });
         expect(adapter).toBeInstanceOf(MockProviderAdapter);
     });

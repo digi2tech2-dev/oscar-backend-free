@@ -4,6 +4,7 @@ const { Router } = require('express');
 const rateLimit = require('express-rate-limit');
 const authenticate = require('../../shared/middlewares/authenticate');
 const authorize = require('../../shared/middlewares/authorize');
+const auditPrivilegedMutation = require('../../shared/middlewares/auditPrivilegedMutation');
 const catchAsync = require('../../shared/utils/catchAsync');
 const { sendSuccess } = require('../../shared/utils/apiResponse');
 const { requirePaymentProvider } = require('./payment.provider');
@@ -17,6 +18,7 @@ const service = require('./theme.service');
 
 const router = Router();
 router.use(authenticate, authorize('ADMIN'));
+router.use(auditPrivilegedMutation);
 const publishLimit = rateLimit({ windowMs: 60 * 60 * 1000, limit: 60, standardHeaders: 'draft-8',
     legacyHeaders: false, message: { success: false, code: 'THEME_RATE_LIMIT', message: 'Too many theme publishes.' } });
 const checkoutLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5,

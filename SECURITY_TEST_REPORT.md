@@ -1,5 +1,17 @@
 # Security Test Report
 
+## Continuation verification from `efeeeb4`
+
+- Final local backend regression: 25 suites passed, 769 tests passed, 0 failed. Test databases used `mongodb-memory-server`; no production database, external supplier, email provider, payment service, or live financial transaction was used.
+- Targeted `securityHardening.test.js`: 1 suite, 26 tests passed. It covers trusted-host enforcement, invalid supplier URLs and address ranges, mixed and rebinding DNS responses, redirect/proxy/TLS agent configuration, migration planning, encrypted rollback authenticity, production database rejection, and execution-stop behavior.
+- Frontend: `npm run build` passed; `npm run lint` (`tsc --noEmit`) passed.
+- Syntax checks passed for edited backend JavaScript files; `git diff --check` passed.
+- Dependency audit after compatible updates: 34 total (23 moderate, 11 high, 0 critical); production-only 17 (6 moderate, 11 high, 0 critical). The two prior critical findings are no longer reported. Remaining production high findings are in the WhatsApp/Puppeteer dependency tree; no force downgrade was applied.
+- The credential migration CLI default mode was designed to print a dry-run/no-connection notice. No staging database dry run or apply/rollback operation was run in this session.
+- Redirect and TLS verification was checked through the configured Axios options in isolated tests, and DNS rebinding through a deterministic fake resolver. No live TLS handshake or real DNS rebinding server test was run; that remains a Staging gate.
+
+The earlier baseline results below are retained as historical evidence and do not replace the final continuation results above.
+
 ## Environment and scope
 
 Tests ran only in the local backend checkout using the repository Jest configuration and isolated `mongodb-memory-server` databases/mocked provider adapters. No production MongoDB, production server, real supplier, payment API, or real financial operation was used. The checked-in test helpers set `NODE_ENV=test` and a test-only JWT secret.

@@ -3,6 +3,7 @@
 const { Router } = require('express');
 const authenticate = require('../../shared/middlewares/authenticate');
 const authorize = require('../../shared/middlewares/authorize');
+const auditPrivilegedMutation = require('../../shared/middlewares/auditPrivilegedMutation');
 const catchAsync = require('../../shared/utils/catchAsync');
 const maintenanceService = require('./maintenance.service');
 const { isAuthorizedAdmin } = require('../../shared/middlewares/maintenanceGate');
@@ -23,7 +24,7 @@ router.get('/status', preventCaching, catchAsync(async (req, res) => {
     res.status(200).json({ success: true, data: { ...status, canBypass } });
 }));
 
-router.patch('/status', authenticate, authorize('ADMIN'), preventCaching, catchAsync(async (req, res) => {
+router.patch('/status', authenticate, authorize('ADMIN'), auditPrivilegedMutation, preventCaching, catchAsync(async (req, res) => {
     const status = await maintenanceService.setStatus(req.body?.enabled, req.user._id);
     res.status(200).json({ success: true, message: 'Maintenance mode updated.', data: { ...status, canBypass: true } });
 }));

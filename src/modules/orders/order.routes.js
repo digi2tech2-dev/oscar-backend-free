@@ -8,6 +8,7 @@ const authenticate = require('../../shared/middlewares/authenticate');
 const authorize = require('../../shared/middlewares/authorize');
 const requirePermission = require('../../shared/middlewares/requirePermission');
 const requireActiveUser = require('../../shared/middlewares/requireActiveUser');
+const auditPrivilegedMutation = require('../../shared/middlewares/auditPrivilegedMutation');
 
 const router = Router();
 
@@ -58,13 +59,13 @@ router.get('/:id', authorize('ADMIN', 'SUPERVISOR'), requirePermission('MANAGE_O
  * @desc   Mark order as failed and issue refund
  * @access Admin
  */
-router.patch('/:id/fail', authorize('ADMIN', 'SUPERVISOR'), requirePermission('CONFIRM_ORDERS'), orderIdParamValidation, validate, orderController.failOrder);
+router.patch('/:id/fail', authorize('ADMIN', 'SUPERVISOR'), requirePermission('CONFIRM_ORDERS'), auditPrivilegedMutation, orderIdParamValidation, validate, orderController.failOrder);
 
 /**
  * @route  PATCH /api/orders/:id/complete
  * @desc   Mark order as completed
  * @access Admin
  */
-router.patch('/:id/complete', authorize('ADMIN', 'SUPERVISOR'), requirePermission('CONFIRM_ORDERS'), orderIdParamValidation, validate, orderController.completeOrder);
+router.patch('/:id/complete', authorize('ADMIN', 'SUPERVISOR'), requirePermission('CONFIRM_ORDERS'), auditPrivilegedMutation, orderIdParamValidation, validate, orderController.completeOrder);
 
 module.exports = router;

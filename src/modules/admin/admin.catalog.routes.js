@@ -31,6 +31,7 @@
 const express = require('express');
 const  authenticate  = require('../../shared/middlewares/authenticate');
 const  authorize  = require('../../shared/middlewares/authorize');
+const auditPrivilegedMutation = require('../../shared/middlewares/auditPrivilegedMutation');
 const requirePermission = require('../../shared/middlewares/requirePermission');
 const {
     syncProvider,
@@ -53,6 +54,7 @@ const router = express.Router();
 // All admin routes require authentication and ADMIN role
 router.use(authenticate);
 router.use(authorize('ADMIN', 'SUPERVISOR'));
+router.use(auditPrivilegedMutation);
 
 // ── Sync ──────────────────────────────────────────────────────────────────────
 

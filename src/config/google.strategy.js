@@ -42,9 +42,12 @@ if (config.google.clientId && config.google.clientSecret) {
                     const googleId = profile.id;
                     const email = (profile.emails?.[0]?.value ?? '').toLowerCase();
                     const name = profile.displayName || email.split('@')[0];
+                    const emailVerified = profile._json?.verified_email === true
+                        || profile.emails?.[0]?.verified === true
+                        || profile.emails?.[0]?.verified === 'true';
 
-                    if (!email) {
-                        return done(new Error('Google account has no accessible email address.'));
+                    if (!email || !emailVerified) {
+                        return done(new Error('Google account must provide a verified email address.'));
                     }
 
                     // ── 1. Try find by googleId ────────────────────────────────────
@@ -60,7 +63,7 @@ if (config.google.clientId && config.google.clientSecret) {
                     if (user) {
                         // Link the Google profile to the existing account
                         user.googleId = googleId;
-                        user.verified = true;   // email already confirmed via Google
+                        user.verified = true;
                         await user.save();
                         return done(null, user);
                     }

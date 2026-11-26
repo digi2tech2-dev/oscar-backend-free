@@ -17,6 +17,7 @@
 const { Router } = require('express');
 const  authenticate  = require('../../shared/middlewares/authenticate');
 const  authorize  = require('../../shared/middlewares/authorize');
+const auditPrivilegedMutation = require('../../shared/middlewares/auditPrivilegedMutation');
 const {
     listCurrenciesHandler,
     createCurrencyHandler,
@@ -31,6 +32,7 @@ const router = Router();
 // All currency admin routes require authentication + ADMIN role
 router.use(authenticate);
 router.use(authorize('ADMIN'));
+router.use(auditPrivilegedMutation);
 
 router.get('/', listCurrenciesHandler);
 router.post('/', createCurrencyHandler);

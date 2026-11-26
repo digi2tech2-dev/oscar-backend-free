@@ -13,6 +13,7 @@ const validate = require('../../shared/middlewares/validate');
 const authenticate = require('../../shared/middlewares/authenticate');
 const authorize = require('../../shared/middlewares/authorize');
 const requirePermission = require('../../shared/middlewares/requirePermission');
+const auditPrivilegedMutation = require('../../shared/middlewares/auditPrivilegedMutation');
 
 const router = Router();
 
@@ -51,7 +52,7 @@ router.get(
  */
 router.post(
     '/',
-    authenticate, authorize('ADMIN', 'SUPERVISOR'), requirePermission('MANAGE_PRODUCTS'),
+    authenticate, authorize('ADMIN', 'SUPERVISOR'), requirePermission('MANAGE_PRODUCTS'), auditPrivilegedMutation,
     createProductValidation, validate,
     productController.createProduct
 );
@@ -66,7 +67,7 @@ router.post(
  */
 router.post(
     '/publish',
-    authenticate, authorize('ADMIN', 'SUPERVISOR'), requirePermission('MANAGE_PRODUCTS'),
+    authenticate, authorize('ADMIN', 'SUPERVISOR'), requirePermission('MANAGE_PRODUCTS'), auditPrivilegedMutation,
     publishProductValidation, validate,
     productController.publishProduct
 );
@@ -78,7 +79,7 @@ router.post(
  */
 router.patch(
     '/:id',
-    authenticate, authorize('ADMIN', 'SUPERVISOR'), requirePermission('MANAGE_PRODUCTS'),
+    authenticate, authorize('ADMIN', 'SUPERVISOR'), requirePermission('MANAGE_PRODUCTS'), auditPrivilegedMutation,
     updateProductValidation, validate,
     productController.updateProduct
 );
@@ -90,7 +91,7 @@ router.patch(
  */
 router.patch(
     '/:id/toggle-status',
-    authenticate, authorize('ADMIN', 'SUPERVISOR'), requirePermission('MANAGE_PRODUCTS'),
+    authenticate, authorize('ADMIN', 'SUPERVISOR'), requirePermission('MANAGE_PRODUCTS'), auditPrivilegedMutation,
     productIdParam, validate,
     productController.toggleStatus
 );

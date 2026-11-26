@@ -40,7 +40,8 @@ const config = {
     },
     security: {
         trustedProviderHosts: (process.env.TRUSTED_PROVIDER_HOSTS || '').split(',').map((host) => host.trim().toLowerCase()).filter(Boolean),
-        financialExecutionEnabled: parseBoolean(process.env.FINANCIAL_EXECUTION_ENABLED, true),
+        financialExecutionEnabled: parseBoolean(process.env.FINANCIAL_EXECUTION_ENABLED, process.env.NODE_ENV !== 'production'),
+        twoFactorOtpPepper: process.env.TWO_FACTOR_OTP_PEPPER || (process.env.NODE_ENV === 'test' ? 'test-only-2fa-otp-pepper' : ''),
     },
 
     bcrypt: {
@@ -145,6 +146,13 @@ if (config.env === 'production') {
         throw new Error('PROVIDER_CREDENTIAL_ENCRYPTION_KEY must be an independent base64 encoded 32-byte key');
     }
     if (config.security.trustedProviderHosts.length === 0) throw new Error('TRUSTED_PROVIDER_HOSTS must explicitly list approved supplier hostnames in production');
+    const otpPepper = process.env.TWO_FACTOR_OTP_PEPPER || '';
+    const otpPepperBytes = Buffer.from(otpPepper, 'base64');
+    if (otpPepperBytes.length !== 32 || new Set(otpPepperBytes).size < 16
+        || otpPepperBytes.equals(jwtKeyBytes) || otpPepperBytes.equals(themeKeyBytes)
+        || otpPepperBytes.equals(providerKeyBytes)) {
+        throw new Error('TWO_FACTOR_OTP_PEPPER must be an independent base64 encoded 32-byte key');
+    }
 }
 
 module.exports = config;

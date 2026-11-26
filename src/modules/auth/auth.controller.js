@@ -159,6 +159,10 @@ const disable2FA = catchAsync(async (req, res) => {
  */
 const verify2FA = catchAsync(async (req, res) => {
     const cookieToken = String(req.headers.cookie || '').split(';').map((item) => item.trim()).find((item) => item.startsWith('oauth_2fa='))?.slice('oauth_2fa='.length);
+    if (!req.body.tempToken && cookieToken) {
+        const expectedOrigin = new URL(config.frontend.url).origin;
+        if (req.get('Origin') !== expectedOrigin) return res.status(403).json({ success: false, message: 'Origin is not allowed.' });
+    }
     const { code } = req.body;
     const tempToken = req.body.tempToken || cookieToken;
     const result = await authService.verify2FA(tempToken, code);

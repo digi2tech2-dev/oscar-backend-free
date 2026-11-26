@@ -5,6 +5,7 @@ const userController = require('./user.controller');
 const { updateUserValidation } = require('./user.validation');
 const validate = require('../../shared/middlewares/validate');
 const authenticate = require('../../shared/middlewares/authenticate');
+const auditPrivilegedMutation = require('../../shared/middlewares/auditPrivilegedMutation');
 const authorize = require('../../shared/middlewares/authorize');
 const requirePermission = require('../../shared/middlewares/requirePermission');
 const { createUpload } = require('../../shared/middlewares/upload');
@@ -15,6 +16,7 @@ const router = Router();
 
 // All user routes require authentication
 router.use(authenticate);
+router.use(auditPrivilegedMutation);
 
 // ── Customer: Self-service ────────────────────────────────────────────────────
 

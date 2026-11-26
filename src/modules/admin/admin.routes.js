@@ -80,6 +80,7 @@
 const { Router } = require('express');
 const authenticate = require('../../shared/middlewares/authenticate');
 const authorize = require('../../shared/middlewares/authorize');
+const auditPrivilegedMutation = require('../../shared/middlewares/auditPrivilegedMutation');
 const requirePermission = require('../../shared/middlewares/requirePermission');
 const catchAsync = require('../../shared/utils/catchAsync');
 const { sendSuccess, sendPaginated } = require('../../shared/utils/apiResponse');
@@ -119,6 +120,7 @@ const adminOnly = authorize('ADMIN');
 // ─── Auth guard — applied to every route in this router ──────────────────────
 router.use(authenticate);
 router.use(authorize('ADMIN', 'SUPERVISOR'));
+router.use(auditPrivilegedMutation);
 
 const attachTargetAppImage = (req, _res, next) => {
     if (req.file) {
@@ -152,7 +154,7 @@ router.patch('/users/:id/restore', requirePermission('MANAGE_USERS'), usersCtrl.
 router.patch('/users/:id/role', adminOnly, validateBody(schemas.updateUserRole), usersCtrl.updateUserRole);
 router.patch('/users/:id/currency', requirePermission('MANAGE_USERS'), validateBody(schemas.updateUserCurrency), usersCtrl.updateUserCurrency);
 router.patch('/users/:id/credit-limit', requirePermission('MANAGE_USERS'), validateBody(schemas.updateCreditLimit), usersCtrl.updateUserCreditLimit);
-router.post('/users/:id/reset-password', requirePermission('MANAGE_USERS'), validateBody(schemas.resetUserPassword), usersCtrl.resetUserPassword);
+router.post('/users/:id/reset-password', adminOnly, validateBody(schemas.resetUserPassword), usersCtrl.resetUserPassword);
 router.patch('/users/:id/avatar', requirePermission('MANAGE_USERS'), avatarUpload.single('avatar'), usersCtrl.updateUserAvatar);
 router.patch('/users/:id/permissions', adminOnly, validateBody(schemas.updateUserPermissions), usersCtrl.updateUserPermissions);
 
@@ -161,16 +163,16 @@ router.patch('/users/:id/permissions', adminOnly, validateBody(schemas.updateUse
 // ═══════════════════════════════════════════════════════════════════════════════
 
 router.get('/providers', requirePermission('MANAGE_SUPPLIERS'), providersCtrl.listProviders);
-router.post('/providers', requirePermission('MANAGE_SUPPLIERS'), validateBody(schemas.createProvider), providersCtrl.createProvider);
+router.post('/providers', adminOnly, validateBody(schemas.createProvider), providersCtrl.createProvider);
 // sub-resource actions BEFORE /:id to avoid param collision
 router.get('/providers/:id/balance', requirePermission('MANAGE_SUPPLIERS'), providersCtrl.getProviderBalance);
 router.get('/providers/:id/products', requirePermission('MANAGE_SUPPLIERS'), providersCtrl.getProviderLiveProducts);
 router.post('/providers/:id/test-connection', requirePermission('MANAGE_SUPPLIERS'), providersCtrl.testProviderConnection);
 router.get('/providers/:id/check-order', requirePermission('MANAGE_SUPPLIERS'), providersCtrl.checkProviderOrder);
 router.get('/providers/:providerId/products/:externalProductId/price', requirePermission('MANAGE_SUPPLIERS'), providersCtrl.getProductPrice);
-router.patch('/providers/:id/toggle', requirePermission('MANAGE_SUPPLIERS'), providersCtrl.toggleProvider);
+router.patch('/providers/:id/toggle', adminOnly, providersCtrl.toggleProvider);
 router.get('/providers/:id', requirePermission('MANAGE_SUPPLIERS'), providersCtrl.getProviderById);
-router.patch('/providers/:id', requirePermission('MANAGE_SUPPLIERS'), validateBody(schemas.updateProvider), providersCtrl.updateProvider);
+router.patch('/providers/:id', adminOnly, validateBody(schemas.updateProvider), providersCtrl.updateProvider);
 router.delete('/providers/:id', adminOnly, requirePermission('MANAGE_SUPPLIERS'), providersCtrl.deleteProvider);
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -357,7 +359,7 @@ router.patch('/deposits/:id/approve', requirePermission('MANAGE_DEPOSITS'), vali
             currency: req.body.currency,
             adminNotes: req.body.adminNotes,
         },
-        { actorId: req.user._id, actorRole: 'ADMIN', ipAddress: req.ip, userAgent: req.get('User-Agent') }
+        { actorId: req.user._id, actorRole: req.auditContext.actorRole, ipAddress: req.ip, userAgent: req.get('User-Agent') }
     );
     sendSuccess(res, deposit, 'Deposit approved and wallet credited.');
 }));
@@ -367,7 +369,7 @@ router.patch('/deposits/:id/reject', requirePermission('MANAGE_DEPOSITS'), valid
         req.params.id,
         req.user._id,
         req.body.adminNotes ?? null,
-        { actorId: req.user._id, actorRole: 'ADMIN', ipAddress: req.ip, userAgent: req.get('User-Agent') }
+        { actorId: req.user._id, actorRole: req.auditContext.actorRole, ipAddress: req.ip, userAgent: req.get('User-Agent') }
     );
     sendSuccess(res, deposit, 'Deposit request rejected.');
 }));
@@ -380,7 +382,7 @@ router.patch('/deposits/:id/reject', requirePermission('MANAGE_DEPOSITS'), valid
 router.patch('/deposits/:id/review', requirePermission('MANAGE_DEPOSITS'), validateBody(schemas.reviewDeposit), catchAsync(async (req, res) => {
     const { id } = req.params;
     const { status, adminNotes } = req.body;
-    const auditCtx = { actorId: req.user._id, actorRole: 'ADMIN', ipAddress: req.ip, userAgent: req.get('User-Agent') };
+    const auditCtx = { actorId: req.user._id, actorRole: req.auditContext.actorRole, ipAddress: req.ip, userAgent: req.get('User-Agent') };
 
     let deposit;
     if (status === 'APPROVED') {

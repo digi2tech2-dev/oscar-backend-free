@@ -148,6 +148,9 @@ const createAuditLog = async (params) => {
     }
 };
 
+/** Durable audit write for request gates that must fail closed on log errors. */
+const createAuditLogOrThrow = async (params) => _write(params);
+
 /**
  * getEntityAuditLogs — paginated timeline for a specific entity.
  *
@@ -211,6 +214,7 @@ const getActorAuditLogs = async (actorId, { page = 1, limit = 20 } = {}) => {
 
 module.exports = {
     createAuditLog,
+    createAuditLogOrThrow,
     getEntityAuditLogs,
     getActorAuditLogs,
     // Expose for testing only — not part of the public service API

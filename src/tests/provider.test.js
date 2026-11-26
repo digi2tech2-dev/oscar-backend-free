@@ -146,20 +146,20 @@ describe('[1] Provider Model', () => {
     });
 
     it('enforces unique provider name', async () => {
-        await Provider.create({ name: 'UniqueProvider', baseUrl: 'https://x.com' });
+        await Provider.create({ name: 'UniqueProvider', baseUrl: 'https://x.example' });
         await expect(
-            Provider.create({ name: 'UniqueProvider', baseUrl: 'https://y.com' })
+            Provider.create({ name: 'UniqueProvider', baseUrl: 'https://y.example' })
         ).rejects.toThrow();
     });
 
     it('rejects negative syncInterval', async () => {
         await expect(
-            Provider.create({ name: 'Bad', baseUrl: 'https://x.com', syncInterval: -1 })
+            Provider.create({ name: 'Bad', baseUrl: 'https://x.example', syncInterval: -1 })
         ).rejects.toThrow(/cannot be negative/);
     });
 
     it('defaults isActive to true', async () => {
-        const p = await Provider.create({ name: 'DefProv', baseUrl: 'https://x.com' });
+        const p = await Provider.create({ name: 'DefProv', baseUrl: 'https://x.example' });
         expect(p.isActive).toBe(true);
     });
 });

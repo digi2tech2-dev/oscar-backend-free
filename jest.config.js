@@ -3,6 +3,7 @@ module.exports = {
     testEnvironment: 'node',
     testMatch: ['**/__tests__/**/*.test.js', '**/src/tests/**/*.test.js'],
     testTimeout: 60000, // mongodb-memory-server can be slow on first run
+    setupFiles: ['./src/tests/setupEnvironment.js'],
     // Let Jest handle the global setup/teardown
     globalSetup: './src/tests/globalSetup.js',
     globalTeardown: './src/tests/globalTeardown.js',

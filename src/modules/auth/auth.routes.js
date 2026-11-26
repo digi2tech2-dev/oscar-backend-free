@@ -19,6 +19,7 @@
  */
 
 const { Router } = require('express');
+const crypto = require('node:crypto');
 const passport = require('../../config/google.strategy');
 const authController = require('./auth.controller');
 const {
@@ -45,6 +46,44 @@ const requireGoogleConfig = (req, res, next) => {
                 'Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your .env.',
         });
     }
+    next();
+};
+
+const cookieValue = (req, name) => String(req.headers.cookie || '')
+    .split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`))
+    ?.slice(name.length + 1);
+
+const googleOAuthStart = (req, res, next) => {
+    const state = crypto.randomBytes(32).toString('base64url');
+    res.cookie('oauth_state', state, {
+        httpOnly: true,
+        secure: config.env === 'production',
+        sameSite: 'lax',
+        path: '/api/auth/google/callback',
+        maxAge: 5 * 60 * 1000,
+    });
+    passport.authenticate('google', {
+        scope: ['profile', 'email'],
+        session: false,
+        state,
+    })(req, res, next);
+};
+
+const validateGoogleOAuthState = (req, res, next) => {
+    const cookieState = cookieValue(req, 'oauth_state');
+    const queryState = String(req.query.state || '');
+    const expected = Buffer.from(cookieState || '');
+    const provided = Buffer.from(queryState);
+    const matches = expected.length === provided.length
+        && expected.length > 0
+        && crypto.timingSafeEqual(expected, provided);
+    res.clearCookie('oauth_state', {
+        httpOnly: true,
+        secure: config.env === 'production',
+        sameSite: 'lax',
+        path: '/api/auth/google/callback',
+    });
+    if (!matches) return res.status(400).json({ success: false, message: 'Google sign-in state is invalid or expired.' });
     next();
 };
 
@@ -100,11 +139,9 @@ router.post(
  */
 router.get(
     '/google',
+    authLimiter,
     requireGoogleConfig,
-    passport.authenticate('google', {
-        scope: ['profile', 'email'],
-        session: false,
-    })
+    googleOAuthStart
 );
 
 /**
@@ -115,6 +152,7 @@ router.get(
 router.get(
     '/google/callback',
     requireGoogleConfig,
+    validateGoogleOAuthState,
     passport.authenticate('google', {
         session: false,
         failureRedirect: '/api/auth/google/failure',

@@ -19,6 +19,7 @@ Set and validate all of the following before process start:
 - `JWT_SECRET`: independently generated, high-entropy value of at least 32 random bytes. Do not restore any incident-compromised or historically reused value.
 - `JWT_ISSUER` and `JWT_AUDIENCE`: stable application-specific values matching the frontend/API trust boundary.
 - `THEME_CODE_PEPPER`: independent high-entropy value, distinct from `JWT_SECRET` and all encryption keys.
+- `TWO_FACTOR_OTP_PEPPER`: independent base64 encoded 32-byte HMAC key, rotated only with an explicit OTP invalidation plan.
 - `JWT_EXPIRES_IN=15m` unless security approves a shorter access lifetime; do not use a multi-day access token lifetime.
 - `PROVIDER_CREDENTIAL_ENCRYPTION_KEY`: independently generated 32 random bytes, base64 encoded. It must never equal or derive from `JWT_SECRET`.
 - `TRUSTED_PROVIDER_HOSTS`: exact comma-separated hostnames approved by supplier owners; no wildcard entries, private IPs, or unreviewed aliases.
@@ -43,6 +44,7 @@ The application must fail before listening if a required production secret is ab
 3. Contact supplier owners through the organization's approved incident channel, rotate/reissue each supplier credential, and revoke historical tokens at the supplier.
 4. Approve exact supplier hostnames out-of-band. Add only approved hosts to `TRUSTED_PROVIDER_HOSTS`, review public DNS answers, and test certificate name validation in staging.
 5. Replace provider credentials through the protected application path so the model encrypts and binds the new token to the exact approved host. Existing provider records without `credentialHost` must remain disabled until this is complete.
+   For legacy plaintext records, first run `node src/scripts/migrateProviderCredentials.js` (no DB connection, default dry run). An explicit isolated-staging inspection requires `NODE_ENV=staging`, a staging `MONGO_URI` whose hostname and database exactly match `PROVIDER_MIGRATION_STAGING_HOSTS` and `PROVIDER_MIGRATION_STAGING_DATABASE`, `--allow-staging-db --dry-run`, and exact trusted provider hosts. Applying requires `--allow-staging-db --confirm-staging --apply`, plus separately managed `PROVIDER_CREDENTIAL_ENCRYPTION_KEY`, `PROVIDER_MIGRATION_BACKUP_KEY`, and an absolute `PROVIDER_MIGRATION_BACKUP_FILE` outside the repository. Verify and secure the encrypted backup before writes. Roll back with `--allow-staging-db --confirm-staging --rollback`; rollback keeps restored secrets encrypted. Never run this procedure against production without a separately approved migration plan.
 6. Verify provider API list/get/create/update responses, audit rows, errors, and application logs contain no plaintext credentials. Never serialize raw database rows to logs.
 7. Confirm no production credential depended on a retired JWT secret. Do not attempt unaudited bulk decryption or restore the previous key.
 

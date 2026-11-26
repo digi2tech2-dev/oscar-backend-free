@@ -12,11 +12,13 @@ const validate = require('../../shared/middlewares/validate');
 const authenticate = require('../../shared/middlewares/authenticate');
 const authorize = require('../../shared/middlewares/authorize');
 const requirePermission = require('../../shared/middlewares/requirePermission');
+const auditPrivilegedMutation = require('../../shared/middlewares/auditPrivilegedMutation');
 
 const router = Router();
 
 // All group routes require authentication + ADMIN role
 router.use(authenticate, authorize('ADMIN', 'SUPERVISOR'));
+router.use(auditPrivilegedMutation);
 
 // ─── Group CRUD ───────────────────────────────────────────────────────────────
 

@@ -28,8 +28,7 @@ const canonicalProviderUrl = (raw, trustedHosts = parseTrustedHosts()) => {
     if (!hostname || hostname.includes('%') || hostname === 'localhost' || hostname.endsWith('.localhost')) {
         throw new Error('Provider destination host is not allowed');
     }
-    const testMode = process.env.NODE_ENV === 'test';
-    if (!testMode && !trustedHosts.has(hostname)) throw new Error('Provider destination is not trusted');
+    if (!trustedHosts.has(hostname)) throw new Error('Provider destination is not trusted');
     const ipLiteral = hostname.replace(/^\[|\]$/g, '');
     if (net.isIP(ipLiteral)) throw new Error('Provider destination must use an approved hostname');
     url.hostname = hostname;
@@ -76,6 +75,8 @@ const createProviderHttpClient = (baseURL, headers, timeout = 15000) => {
         baseURL: url.toString(),
         timeout: Math.min(Math.max(Number(timeout) || 15000, 1000), 30000),
         maxRedirects: 0,
+        // Do not let adapter parameters override the validated trusted origin.
+        allowAbsoluteUrls: false,
         maxContentLength: 2 * 1024 * 1024,
         maxBodyLength: 1024 * 1024,
         proxy: false,

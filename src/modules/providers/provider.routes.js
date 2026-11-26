@@ -15,11 +15,12 @@ const validate = require('../../shared/middlewares/validate');
 const authenticate = require('../../shared/middlewares/authenticate');
 const authorize = require('../../shared/middlewares/authorize');
 const requirePermission = require('../../shared/middlewares/requirePermission');
+const auditPrivilegedMutation = require('../../shared/middlewares/auditPrivilegedMutation');
 
 const router = Router();
 
 // All provider routes are admin-only
-router.use(authenticate, authorize('ADMIN', 'SUPERVISOR'), requirePermission('MANAGE_SUPPLIERS'));
+router.use(authenticate, authorize('ADMIN', 'SUPERVISOR'), requirePermission('MANAGE_SUPPLIERS'), auditPrivilegedMutation);
 
 // =============================================================================
 // LAYER 1 — PROVIDER CRUD
@@ -38,6 +39,7 @@ router.get('/', controller.listProviders);
  */
 router.post(
     '/',
+    authorize('ADMIN'),
     createProviderValidation, validate,
     controller.createProvider
 );
@@ -58,6 +60,7 @@ router.get(
  */
 router.patch(
     '/:id',
+    authorize('ADMIN'),
     updateProviderValidation, validate,
     controller.updateProvider
 );
@@ -157,6 +160,7 @@ router.patch(
  */
 router.post(
     '/products/publish',
+    authorize('ADMIN'),
     publishProductValidation, validate,
     controller.publishProduct
 );
@@ -168,6 +172,7 @@ router.post(
  */
 router.patch(
     '/products/:productId',
+    authorize('ADMIN'),
     updatePublishedProductValidation, validate,
     controller.updatePublishedProduct
 );

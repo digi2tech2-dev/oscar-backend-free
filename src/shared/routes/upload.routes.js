@@ -15,6 +15,7 @@ const { Router } = require('express');
 const authenticate = require('../middlewares/authenticate');
 const authorize = require('../middlewares/authorize');
 const requirePermission = require('../middlewares/requirePermission');
+const auditPrivilegedMutation = require('../middlewares/auditPrivilegedMutation');
 const { createUpload } = require('../middlewares/upload');
 const { BusinessRuleError } = require('../errors/AppError');
 const { sendSuccess } = require('../utils/apiResponse');
@@ -31,6 +32,7 @@ const CATEGORY_PERMISSIONS = {
 // All upload routes require auth + admin
 router.use(authenticate);
 router.use(authorize('ADMIN', 'SUPERVISOR'));
+router.use(auditPrivilegedMutation);
 
 /**
  * @route  POST /api/upload/:category

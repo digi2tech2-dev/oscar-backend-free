@@ -197,6 +197,7 @@ const userSchema = new mongoose.Schema(
             select: false,
             default: null,
         },
+        twoFactorOtpAttempts: { type: Number, default: 0, min: 0, max: 5, select: false },
 
         /** Whether the user must complete email OTP verification to log in. */
         isTwoFactorEnabled: {
@@ -399,7 +400,7 @@ userSchema.virtual('quantityRemaining').get(function () {
 
 // ─── Pre-save Hook: Hash Password ────────────────────────────────────────────
 userSchema.pre('save', async function (next) {
-    if (this.isModified('password') || this.isModified('role') || this.isModified('status') || this.isModified('permissions') || this.isModified('isTwoFactorEnabled')) {
+    if (this.isModified('password') || this.isModified('role') || this.isModified('status') || this.isModified('permissions') || this.isModified('isTwoFactorEnabled') || this.isModified('googleId') || this.isModified('email')) {
         this.sessionVersion = (this.sessionVersion || 0) + 1;
     }
     // Skip if no password set (OAuth users) or password not modified
@@ -421,6 +422,7 @@ userSchema.methods.toSafeObject = function () {
     delete obj.password;
     delete obj.twoFactorOtp;
     delete obj.twoFactorOtpExpires;
+    delete obj.twoFactorOtpAttempts;
     delete obj.sessionVersion;
     return obj;
 };
