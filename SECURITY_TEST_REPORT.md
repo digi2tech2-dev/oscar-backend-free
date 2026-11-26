@@ -10,6 +10,18 @@
 - The credential migration CLI default mode was designed to print a dry-run/no-connection notice. No staging database dry run or apply/rollback operation was run in this session.
 - Redirect and TLS verification was checked through the configured Axios options in isolated tests, and DNS rebinding through a deterministic fake resolver. No live TLS handshake or real DNS rebinding server test was run; that remains a Staging gate.
 
+### Dependency impact review
+
+| Package group | Remediation and production relevance |
+|---|---|
+| `express` / `proxy-addr`, `mongoose` | Safe lockfile-compatible updates removed the two critical findings. The app uses Express and Mongoose on live request paths; the fixed versions are installed. |
+| `axios`, `joi`, `multer` and related transitive packages | Compatible upgrades reduced known vulnerable ranges without `--force`; these packages remain in the application request/input paths. |
+| `sharp` | Updated to `0.35.5`; source use is limited to image metadata and resizing, and the code uses still-supported calls. Node 22.22.2 was used for local verification; verify the deployed runtime meets the package engine requirement. |
+| `nodemailer` | Updated to `10.6.1`. Source uses only `createTransport` and `sendMail`; no removed legacy API was found, and the full backend regression passed. SMTP delivery still needs a Staging-only test. |
+| `whatsapp-web.js` / Puppeteer dependency tree | **Residual high risk.** `npm audit` reports 11 production high findings (including transitive Puppeteer, proxy-agent, and archive/extract dependencies); server startup initializes this integration by default. This makes the dependency group production-reachable, but does not prove an exploit occurred or that every advisory input is attacker-controlled. `npm audit fix` offered a forced downgrade of `whatsapp-web.js` to `1.34.6` from `1.34.8`; this downgrade was not applied because it may regress the WhatsApp integration. Replace with a reviewed upstream-compatible dependency fix or isolate/disable the WhatsApp worker before production recovery. |
+
+The audit count moved from 48 (1 low, 20 moderate, 25 high, 2 critical) at the starting lockfile to 34 (0 low, 23 moderate, 11 high, 0 critical); production-only is 17 (6 moderate, 11 high, 0 critical). Counts can change as the registry advisory database changes. Review `npm audit --json` against the exact release lockfile immediately before deployment.
+
 The earlier baseline results below are retained as historical evidence and do not replace the final continuation results above.
 
 ## Environment and scope
