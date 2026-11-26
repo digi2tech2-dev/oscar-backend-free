@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const { executeWalletOperation, OUTBOX_EVENT } = require('./walletOperation.service');
 const { ACTOR_ROLES } = require('../audit/audit.constants');
 const { makeAuditEvent, enqueueAuditEvents } = require('../audit/auditOutbox.service');
+const executionGate = require('../../shared/security/executionGate');
 
 const noActiveWalletOperation = { activeWalletOperation: { $exists: false } };
 const activeWalletOperationConflict = () => new BusinessRuleError(
@@ -103,6 +104,7 @@ const _createTransactionRecord = async ({
  * @returns {{ walletDeducted: number, creditUsedAmount: number, transaction: WalletTransaction }}
  */
 const debitWalletAtomic = async ({ userId, amount, reference = null, description = '', session, idempotencyKey, actorId, actorRole }) => {
+    executionGate.assertEnabled('Wallet mutations');
     if (amount <= 0) {
         throw new BusinessRuleError('Debit amount must be greater than zero.', 'INVALID_AMOUNT');
     }
@@ -159,6 +161,7 @@ const debitWalletAtomic = async ({ userId, amount, reference = null, description
  * @returns {{ transaction: WalletTransaction }}
  */
 const forcedDebitWallet = async ({ userId, amount, reference = null, description = '', session, idempotencyKey, actorId, actorRole }) => {
+    executionGate.assertEnabled('Wallet mutations');
     if (amount <= 0) {
         throw new BusinessRuleError('Debit amount must be greater than zero.', 'INVALID_AMOUNT');
     }
@@ -205,6 +208,7 @@ const refundWalletAtomic = async ({
     actorRole,
     auditEvents,
 }) => {
+    executionGate.assertEnabled('Wallet mutations');
     const totalRefund = parseFloat((walletDeducted + creditUsedAmount).toFixed(2));
     if (totalRefund <= 0) {
         throw new BusinessRuleError('Refund amount must be greater than zero.', 'INVALID_AMOUNT');
@@ -244,6 +248,7 @@ const refundWalletAtomic = async ({
  * Session is optional — works on standalone MongoDB instances.
  */
 const creditWalletDirect = async ({ userId, amount, reference = null, description = '', session, idempotencyKey, expectedCurrency, activeOperationKey, activeOperationLeaseToken }) => {
+    executionGate.assertEnabled('Wallet mutations');
     if (amount <= 0) {
         throw new BusinessRuleError('Credit amount must be greater than zero.', 'INVALID_AMOUNT');
     }

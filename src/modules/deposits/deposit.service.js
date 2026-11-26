@@ -17,6 +17,7 @@ const { createAuditLog } = require('../audit/audit.service');
 const { DEPOSIT_ACTIONS, WALLET_ACTIONS, ENTITY_TYPES, ACTOR_ROLES } = require('../audit/audit.constants');
 const { makeAuditEvent, enqueueAuditEvents, deliverOneAuditEvent } = require('../audit/auditOutbox.service');
 const { AuditOutbox } = require('../audit/auditOutbox.model');
+const executionGate = require('../../shared/security/executionGate');
 const { notifyNewDeposit, notifyDepositApproved, notifyDepositRejected } = require('../notifications/notification.service');
 const { WalletTransaction, TRANSACTION_TYPES } = require('../wallet/walletTransaction.model');
 const whatsappService = require('../whatsapp/whatsapp.service');
@@ -576,6 +577,7 @@ const recordApprovalRecoveryError = async (depositId, status, error) => {
 
 /** Standalone-safe, resumable credit. The wallet marker and balance increment are one document update. */
 const resumeDepositApproval = async (depositId, preferredLeaseToken = null) => {
+    executionGate.assertEnabled('Deposit credits');
     const deposit = await DepositRequest.findById(depositId);
     if (!deposit) throw new NotFoundError('DepositRequest');
     if (deposit.status === DEPOSIT_STATUS.APPROVED) {
@@ -802,6 +804,7 @@ const resumeDepositApproval = async (depositId, preferredLeaseToken = null) => {
 };
 
 const approveDeposit = async (depositId, adminId, adminOverrides = {}, auditContext = null) => {
+    executionGate.assertEnabled('Deposit credits');
     let existing = await DepositRequest.findById(depositId);
     if (!existing) throw new NotFoundError('DepositRequest');
     if (existing.status === DEPOSIT_STATUS.APPROVED) throw new BusinessRuleError('This deposit request has already been approved.', 'DEPOSIT_ALREADY_APPROVED');
@@ -961,6 +964,7 @@ const populateDeposit = (deposit) => DepositRequest.findById(deposit._id)
 
 /** Run after connecting to MongoDB so approvals interrupted on a standalone server finish after restart. */
 const resumePendingDepositApprovals = async () => {
+    if (!executionGate.isEnabled()) return { resumed: 0, failed: 0, skipped: true, reason: 'EXECUTION_EMERGENCY_STOP' };
     const pending = await DepositRequest.find({ status: DEPOSIT_STATUS.CREDIT_PENDING }).select('_id').lean();
     const results = await Promise.allSettled(pending.map(({ _id }) => resumeDepositApproval(_id)));
     const failures = results.filter((result) => result.status === 'rejected');

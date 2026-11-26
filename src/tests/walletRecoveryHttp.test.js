@@ -20,7 +20,7 @@ beforeAll(async () => {
     baseUrl = `http://127.0.0.1:${server.address().port}`;
     request = async (path, user, method = 'GET') => {
         const headers = {};
-        if (user) headers.Authorization = `Bearer ${jwt.sign({ id: String(user._id) }, process.env.JWT_SECRET)}`;
+        if (user) headers.Authorization = `Bearer ${jwt.sign({ id: String(user._id), sv: user.sessionVersion || 0 }, process.env.JWT_SECRET, { issuer: 'oscar-api', audience: 'oscar-client', algorithm: 'HS256' })}`;
         const response = await fetch(`${baseUrl}${path}`, { method, headers });
         return { status: response.status, body: await response.json() };
     };
@@ -68,7 +68,7 @@ test('admin wallet credit endpoint replays an idempotent request without crediti
     const idempotencyKey = 'admin-credit-http-retry-001';
     const sendCredit = async (user) => {
         const headers = { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey };
-        if (user) headers.Authorization = `Bearer ${jwt.sign({ id: String(user._id) }, process.env.JWT_SECRET)}`;
+        if (user) headers.Authorization = `Bearer ${jwt.sign({ id: String(user._id), sv: user.sessionVersion || 0 }, process.env.JWT_SECRET, { issuer: 'oscar-api', audience: 'oscar-client', algorithm: 'HS256' })}`;
         const response = await fetch(`${baseUrl}${path}`, {
             method: 'POST', headers,
             body: JSON.stringify({ amount: 800, reason: 'HTTP wallet credit verification', idempotencyKey }),
@@ -95,7 +95,7 @@ test('admin wallet credit treats a legacy null wallet reservation as unlocked', 
     const response = await fetch(`${baseUrl}/api/admin/wallets/${customer._id}/add`, {
         method: 'POST',
         headers: {
-            Authorization: `Bearer ${jwt.sign({ id: String(admin._id) }, process.env.JWT_SECRET)}`,
+            Authorization: `Bearer ${jwt.sign({ id: String(admin._id), sv: admin.sessionVersion || 0 }, process.env.JWT_SECRET, { issuer: 'oscar-api', audience: 'oscar-client', algorithm: 'HS256' })}`,
             'Content-Type': 'application/json',
             'Idempotency-Key': 'admin-credit-null-wallet-lock-001',
         },
@@ -128,7 +128,7 @@ test('admin wallet credit repairs a stale PREPARED retry without applying a stal
     const response = await fetch(`${baseUrl}/api/admin/wallets/${customer._id}/add`, {
         method: 'POST',
         headers: {
-            Authorization: `Bearer ${jwt.sign({ id: String(admin._id) }, process.env.JWT_SECRET)}`,
+            Authorization: `Bearer ${jwt.sign({ id: String(admin._id), sv: admin.sessionVersion || 0 }, process.env.JWT_SECRET, { issuer: 'oscar-api', audience: 'oscar-client', algorithm: 'HS256' })}`,
             'Content-Type': 'application/json',
             'Idempotency-Key': idempotencyKey,
         },

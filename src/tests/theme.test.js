@@ -38,7 +38,7 @@ const customer = async () => (await createCustomerWithGroup({
     phone: '01012345678', profileCompletedAt: new Date(),
 })).customer;
 const request = async (path, user, method = 'GET', body) => {
-    const token = jwt.sign({ id: user._id.toString(), role: user.role }, process.env.JWT_SECRET);
+    const token = jwt.sign({ id: user._id.toString(), role: user.role, sv: user.sessionVersion || 0 }, process.env.JWT_SECRET, { issuer: 'oscar-api', audience: 'oscar-client', algorithm: 'HS256' });
     const response = await fetch(`${baseUrl}${path}`, { method,
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body) });
@@ -610,7 +610,7 @@ test('verified Pro admin can upload and publish a logo with a premium preset', a
         startsAt, expiresAt: theme.addCalendarMonthsUTC(startsAt, 3) });
     const bytes = await sharp({ create: { width: 128, height: 128, channels: 4,
         background: '#2563EB' } }).png().toBuffer();
-    const token = jwt.sign({ id: admin._id.toString(), role: admin.role }, process.env.JWT_SECRET);
+    const token = jwt.sign({ id: admin._id.toString(), role: admin.role, sv: admin.sessionVersion || 0 }, process.env.JWT_SECRET, { issuer: 'oscar-api', audience: 'oscar-client', algorithm: 'HS256' });
     const invalidForm = new FormData();
     invalidForm.append('image', new Blob([Buffer.from('not a png')], { type: 'image/png' }), 'fake.png');
     const invalidUpload = await fetch(`${baseUrl}/api/admin/theme/media/upload`, {

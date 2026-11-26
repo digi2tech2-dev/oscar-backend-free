@@ -1,6 +1,7 @@
 'use strict';
 
 const mongoose = require('mongoose');
+const { encryptCredential, decryptCredential } = require('../../shared/security/providerCredentials');
 
 /**
  * Provider — an external data source that supplies raw product inventory.
@@ -45,6 +46,7 @@ const providerSchema = new mongoose.Schema(
             required: [true, 'baseUrl is required'],
             trim: true,
         },
+        credentialHost: { type: String, trim: true, lowercase: true, default: null },
 
         /**
          * Primary API token / key for this provider.
@@ -55,6 +57,8 @@ const providerSchema = new mongoose.Schema(
             type: String,
             trim: true,
             default: null,
+            set: encryptCredential,
+            get: decryptCredential,
         },
 
         /**
@@ -64,6 +68,8 @@ const providerSchema = new mongoose.Schema(
             type: String,
             trim: true,
             default: null,
+            set: encryptCredential,
+            get: decryptCredential,
         },
 
         isActive: {
@@ -112,6 +118,9 @@ providerSchema.virtual('effectiveToken').get(function () {
     return this.apiToken || this.apiKey || null;
 });
 
+providerSchema.set('toJSON', { transform: (_doc, ret) => { delete ret.apiToken; delete ret.apiKey; delete ret.effectiveToken; return ret; } });
+providerSchema.set('toObject', { transform: (_doc, ret) => { delete ret.apiToken; delete ret.apiKey; delete ret.effectiveToken; return ret; } });
+
 // ─── Pre-save: auto-generate slug ───────────────────────────────────────────────
 
 providerSchema.pre('save', function (next) {
@@ -120,6 +129,12 @@ providerSchema.pre('save', function (next) {
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-+|-+$/g, '');
+    }
+    if (this.isNew || this.isModified('apiToken') || this.isModified('apiKey')) {
+        try {
+            const { canonicalProviderUrl } = require('../../shared/security/providerHttp');
+            this.credentialHost = canonicalProviderUrl(this.baseUrl).hostname.toLowerCase();
+        } catch (error) { return next(error); }
     }
     next();
 });

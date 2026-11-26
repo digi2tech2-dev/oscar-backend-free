@@ -122,6 +122,8 @@ router.get(
     authController.googleCallback
 );
 
+router.post('/oauth-session', authController.exchangeOAuthSession);
+
 /**
  * @route  GET /api/auth/google/failure
  * @desc   Generic fallback when Google OAuth fails

@@ -41,7 +41,7 @@ const createProvider = async (data, adminId) => {
         action: ADMIN_ACTIONS.PROVIDER_CREATED,
         entityType: ENTITY_TYPES.PROVIDER,
         entityId: provider._id,
-        metadata: { name: provider.name, slug: provider.slug, baseUrl: provider.baseUrl },
+        metadata: { name: provider.name, slug: provider.slug, destinationHost: provider.credentialHost },
     });
 
     return provider;
@@ -58,7 +58,7 @@ const updateProvider = async (id, data, adminId) => {
 
     if (name !== undefined) provider.name = name;
     if (slug !== undefined) provider.slug = slug;
-    if (baseUrl !== undefined) provider.baseUrl = baseUrl;
+    if (baseUrl !== undefined) throw new BusinessRuleError('Supplier destinations require the out-of-band trust and credential replacement procedure.', 'PROVIDER_DESTINATION_CHANGE_REQUIRES_MIGRATION');
     if (apiToken !== undefined) provider.apiToken = apiToken;
     if (isActive !== undefined) provider.isActive = isActive;
     if (syncInterval !== undefined) provider.syncInterval = syncInterval;

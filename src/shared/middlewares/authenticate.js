@@ -28,7 +28,9 @@ const authenticate = catchAsync(async (req, res, next) => {
     }
 
     // 2. Verify signature
-    const decoded = jwt.verify(token, config.jwt.secret);
+    const decoded = jwt.verify(token, config.jwt.secret, {
+        algorithms: ['HS256'], issuer: config.jwt.issuer, audience: config.jwt.audience,
+    });
 
     // 2b. Reject 2FA-pending tokens — these must be consumed via /verify-2fa only
     if (decoded.purpose === '2fa-pending') {
@@ -38,7 +40,7 @@ const authenticate = catchAsync(async (req, res, next) => {
     }
 
     // 3. Confirm user still exists
-    const currentUser = await User.findById(decoded.id);
+    const currentUser = await User.findById(decoded.id).select('+sessionVersion');
     if (!currentUser) {
         throw new AuthenticationError('The user belonging to this token no longer exists.');
     }
@@ -49,6 +51,10 @@ const authenticate = catchAsync(async (req, res, next) => {
         throw new AuthenticationError(
             'Your account is not active. Contact an administrator.'
         );
+    }
+
+    if (decoded.sv !== (currentUser.sessionVersion || 0)) {
+        throw new AuthenticationError('This session has been revoked. Please log in again.');
     }
 
     // 5. Attach to request

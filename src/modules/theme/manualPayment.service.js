@@ -33,7 +33,9 @@ const CODE_LIFETIME_MS = 48 * 60 * 60 * 1000;
 const makeCode = () => String(crypto.randomInt(0, 10_000_000_000)).padStart(10, '0');
 const hashCode = (code, salt) => crypto.scryptSync(code, salt, 32).toString('hex');
 const fingerprintCode = (code) => {
-    const secret = process.env.THEME_CODE_PEPPER || process.env.JWT_SECRET;
+    const secret = process.env.THEME_CODE_PEPPER
+        || (process.env.NODE_ENV === 'test' ? process.env.JWT_SECRET : null);
+    if (!secret) throw new Error('THEME_CODE_PEPPER must be configured independently of authentication secrets');
     if (!secret) throw new AppError('The activation-code secret is not configured.', 503, 'CODE_SECRET_MISSING');
     return crypto.createHmac('sha256', secret).update(`platform-theme:${code}`).digest('hex');
 };

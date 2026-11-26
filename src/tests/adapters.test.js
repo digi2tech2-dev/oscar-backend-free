@@ -63,6 +63,7 @@ const torosProvider = {
     name: 'Torosfon Store',
     slug: 'toros',
     baseUrl: 'https://torosfon.example.com',
+    credentialHost: 'torosfon.example.com',
     apiToken: 'toros-secret',
 };
 
@@ -70,6 +71,7 @@ const alkasrProvider = {
     name: 'Alkasr VIP',
     slug: 'alkasr-vip',
     baseUrl: 'https://alkasr.example.com',
+    credentialHost: 'alkasr.example.com',
     apiToken: 'alkasr-secret',
 };
 
@@ -77,6 +79,7 @@ const royalProvider = {
     name: 'Royal Crown',
     slug: 'royal-crown',
     baseUrl: 'https://royal.example.com',
+    credentialHost: 'royal.example.com',
     apiToken: 'royal-secret',
 };
 
@@ -568,7 +571,7 @@ describe('[8] adapter.factory — resolution', () => {
     it('resolves TorosfonAdapter by slug "toros"', () => {
         const adapter = getProviderAdapter({
             slug: 'toros', name: 'Torosfon Store',
-            baseUrl: 'https://x.com', apiToken: 'tok',
+            baseUrl: 'https://x.com', apiToken: 'tok', credentialHost: 'x.com',
         });
         expect(adapter).toBeInstanceOf(TorosfonAdapter);
     });
@@ -576,7 +579,7 @@ describe('[8] adapter.factory — resolution', () => {
     it('resolves TorosfonAdapter by slug "torosfon"', () => {
         const adapter = getProviderAdapter({
             slug: 'torosfon', name: 'Torosfon Store',
-            baseUrl: 'https://x.com', apiToken: 'tok',
+            baseUrl: 'https://x.com', apiToken: 'tok', credentialHost: 'x.com',
         });
         expect(adapter).toBeInstanceOf(TorosfonAdapter);
     });
@@ -584,7 +587,7 @@ describe('[8] adapter.factory — resolution', () => {
     it('resolves TorosfonAdapter by name "torosfon store" (no slug)', () => {
         const adapter = getProviderAdapter({
             slug: '', name: 'Torosfon Store',
-            baseUrl: 'https://x.com', apiToken: 'tok',
+            baseUrl: 'https://x.com', apiToken: 'tok', credentialHost: 'x.com',
         });
         expect(adapter).toBeInstanceOf(TorosfonAdapter);
     });
@@ -592,7 +595,7 @@ describe('[8] adapter.factory — resolution', () => {
     it('resolves AlkasrVipAdapter by slug "alkasr-vip"', () => {
         const adapter = getProviderAdapter({
             slug: 'alkasr-vip', name: 'Alkasr VIP',
-            baseUrl: 'https://x.com', apiToken: 'tok',
+            baseUrl: 'https://x.com', apiToken: 'tok', credentialHost: 'x.com',
         });
         expect(adapter).toBeInstanceOf(AlkasrVipAdapter);
     });
@@ -600,7 +603,7 @@ describe('[8] adapter.factory — resolution', () => {
     it('resolves AlkasrVipAdapter by slug "alkasr"', () => {
         const adapter = getProviderAdapter({
             slug: 'alkasr', name: 'Alkasr VIP',
-            baseUrl: 'https://x.com', apiToken: 'tok',
+            baseUrl: 'https://x.com', apiToken: 'tok', credentialHost: 'x.com',
         });
         expect(adapter).toBeInstanceOf(AlkasrVipAdapter);
     });
@@ -608,7 +611,7 @@ describe('[8] adapter.factory — resolution', () => {
     it('resolves AlkasrVipAdapter by name "alkasr vip" (no slug)', () => {
         const adapter = getProviderAdapter({
             slug: '', name: 'Alkasr VIP',
-            baseUrl: 'https://x.com', apiToken: 'tok',
+            baseUrl: 'https://x.com', apiToken: 'tok', credentialHost: 'x.com',
         });
         expect(adapter).toBeInstanceOf(AlkasrVipAdapter);
     });
@@ -616,7 +619,7 @@ describe('[8] adapter.factory — resolution', () => {
     it('resolves RoyalCrownAdapter by slug "royal-crown"', () => {
         const adapter = getProviderAdapter({
             slug: 'royal-crown', name: 'Royal Crown',
-            baseUrl: 'https://x.com', apiToken: 'tok',
+            baseUrl: 'https://x.com', apiToken: 'tok', credentialHost: 'x.com',
         });
         expect(adapter).toBeInstanceOf(RoyalCrownAdapter);
     });

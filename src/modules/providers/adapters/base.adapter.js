@@ -181,6 +181,9 @@ class BaseProviderAdapter {
      * @returns {string|null}
      */
     _resolveToken() {
+        let destinationHost;
+        try { destinationHost = new URL(this.provider.baseUrl).hostname.toLowerCase(); } catch { return null; }
+        if (!this.provider.credentialHost || this.provider.credentialHost !== destinationHost) return null;
         return this.provider.apiToken
             || this.provider.apiKey
             || this.provider.effectiveToken

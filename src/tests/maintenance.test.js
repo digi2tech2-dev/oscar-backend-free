@@ -25,7 +25,7 @@ beforeEach(clearCollections);
 
 const request = async (path, user, method = 'GET', body) => {
     const headers = { 'Content-Type': 'application/json' };
-    if (user) headers.Authorization = `Bearer ${jwt.sign({ id: user._id.toString(), role: user.role }, process.env.JWT_SECRET)}`;
+    if (user) headers.Authorization = `Bearer ${jwt.sign({ id: user._id.toString(), role: user.role, sv: user.sessionVersion || 0 }, process.env.JWT_SECRET, { issuer: 'oscar-api', audience: 'oscar-client', algorithm: 'HS256' })}`;
     const response = await fetch(`${baseUrl}${path}`, {
         method,
         headers,

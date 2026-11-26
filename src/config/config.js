@@ -34,7 +34,13 @@ const config = {
 
     jwt: {
         secret: process.env.JWT_SECRET,
-        expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+        expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+        issuer: process.env.JWT_ISSUER || 'oscar-api',
+        audience: process.env.JWT_AUDIENCE || 'oscar-client',
+    },
+    security: {
+        trustedProviderHosts: (process.env.TRUSTED_PROVIDER_HOSTS || '').split(',').map((host) => host.trim().toLowerCase()).filter(Boolean),
+        financialExecutionEnabled: parseBoolean(process.env.FINANCIAL_EXECUTION_ENABLED, true),
     },
 
     bcrypt: {
@@ -102,6 +108,43 @@ const required = ['MONGO_URI', 'JWT_SECRET'];
 const missing = required.filter((key) => !process.env[key]);
 if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+}
+
+if (config.env === 'production') {
+    const jwtBytes = Buffer.from(config.jwt.secret, 'base64');
+    const canonicalBase64 = jwtBytes.length === 32
+        && jwtBytes.toString('base64').replace(/=+$/, '') === config.jwt.secret.replace(/=+$/, '');
+    const hexEncoded = /^[a-f0-9]{64}$/i.test(config.jwt.secret);
+    const jwtKeyBytes = canonicalBase64 ? jwtBytes : (hexEncoded ? Buffer.from(config.jwt.secret, 'hex') : Buffer.alloc(0));
+    const weakSecret = (!canonicalBase64 && !hexEncoded)
+        || new Set(config.jwt.secret).size < 16
+        || /change.?me|your_super|example|secret123/i.test(config.jwt.secret);
+    if (weakSecret) throw new Error('JWT_SECRET must be a high-entropy secret of at least 32 characters in production');
+    const lifetime = /^(\d+)(s|m|h)$/.exec(config.jwt.expiresIn);
+    const lifetimeSeconds = lifetime
+        ? Number(lifetime[1]) * ({ s: 1, m: 60, h: 3600 }[lifetime[2]])
+        : Infinity;
+    if (!Number.isSafeInteger(lifetimeSeconds) || lifetimeSeconds < 1 || lifetimeSeconds > 3600) {
+        throw new Error('JWT_EXPIRES_IN must be between 1 second and 1 hour in production');
+    }
+    const themePepper = process.env.THEME_CODE_PEPPER || '';
+    const themeBase64 = Buffer.from(themePepper, 'base64');
+    const canonicalThemeBase64 = themeBase64.length === 32
+        && themeBase64.toString('base64').replace(/=+$/, '') === themePepper.replace(/=+$/, '');
+    const themeHex = /^[a-f0-9]{64}$/i.test(themePepper);
+    const themeKeyBytes = canonicalThemeBase64 ? themeBase64 : (themeHex ? Buffer.from(themePepper, 'hex') : Buffer.from(themePepper, 'utf8'));
+    if (themePepper.length < 32 || new Set(themePepper).size < 16
+        || themePepper === config.jwt.secret
+        || (jwtKeyBytes.length === 32 && themeKeyBytes.equals(jwtKeyBytes))) {
+        throw new Error('THEME_CODE_PEPPER must be an independent high-entropy secret in production');
+    }
+    if (!process.env.PROVIDER_CREDENTIAL_ENCRYPTION_KEY) throw new Error('PROVIDER_CREDENTIAL_ENCRYPTION_KEY is required in production');
+    const providerKeyBytes = Buffer.from(process.env.PROVIDER_CREDENTIAL_ENCRYPTION_KEY, 'base64');
+    if (providerKeyBytes.length !== 32 || new Set(providerKeyBytes).size < 16
+        || providerKeyBytes.equals(jwtKeyBytes) || providerKeyBytes.equals(themeKeyBytes)) {
+        throw new Error('PROVIDER_CREDENTIAL_ENCRYPTION_KEY must be an independent base64 encoded 32-byte key');
+    }
+    if (config.security.trustedProviderHosts.length === 0) throw new Error('TRUSTED_PROVIDER_HOSTS must explicitly list approved supplier hostnames in production');
 }
 
 module.exports = config;

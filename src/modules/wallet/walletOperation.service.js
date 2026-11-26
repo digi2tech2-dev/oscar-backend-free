@@ -13,6 +13,7 @@ const {
 } = require('../audit/auditOutbox.service');
 const { WALLET_ACTIONS, ENTITY_TYPES, ACTOR_ROLES } = require('../audit/audit.constants');
 const { BusinessRuleError, NotFoundError, InsufficientFundsError } = require('../../shared/errors/AppError');
+const executionGate = require('../../shared/security/executionGate');
 
 const OWNER = `${process.pid}:${crypto.randomUUID()}`;
 const LEASE_CONFIG = Number(process.env.WALLET_OPERATION_LEASE_MS);
@@ -497,6 +498,7 @@ const resumeWalletOperation = async (operationIdOrKey, { leaseToken: preferredTo
 };
 
 const executeWalletOperation = async (input) => {
+    executionGate.assertEnabled('Wallet mutations');
     await ensureWalletOperationIndexesReady();
     if (!input.idempotencyKey) throw new BusinessRuleError('Wallet operation requires an idempotency key.', 'WALLET_OPERATION_KEY_REQUIRED');
     let operation = await ensureOperationRecord(input, input.session || null);
@@ -508,6 +510,7 @@ const executeWalletOperation = async (input) => {
 };
 
 const recoverPendingWalletOperations = async ({ limit = 100 } = {}) => {
+    if (!executionGate.isEnabled()) return { recovered: 0, skipped: true, reason: 'EXECUTION_EMERGENCY_STOP' };
     const staleLocks = await User.find({ 'activeWalletOperation.operationKey': { $exists: true }, 'activeWalletOperation.status': 'APPLIED' })
         .select('_id +activeWalletOperation currency')
         .limit(Math.min(limit, 500));

@@ -23,6 +23,7 @@ const {
     ACTOR_ROLES,
 } = require('../audit/audit.constants');
 const { convertUsdToUserCurrency } = require('../../services/currencyConverter.service');
+const executionGate = require('../../shared/security/executionGate');
 const { User } = require('../users/user.model');
 const Group = require('../groups/group.model');
 const { getLivePrice, invalidate: invalidatePriceCache } = require('../providers/providerPriceCache');
@@ -429,6 +430,7 @@ const createOrder = async ({
     customInputs = null,
     provider = null,   // ← injected; null = auto-resolve from factory
 }) => {
+    executionGate.assertEnabled('Order creation');
     const normalizedOrderInput = normalizeOrderInputPayload(orderFieldsValues, customInputs);
 
     // ── Pre-transaction: Idempotency Check ───────────────────────────────────

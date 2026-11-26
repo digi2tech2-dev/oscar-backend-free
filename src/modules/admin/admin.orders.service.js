@@ -10,6 +10,7 @@ const mongoose = require('mongoose');
 const { Order, ORDER_STATUS } = require('../orders/order.model');
 const { markOrderAsFailed, processOrderRefund } = require('../orders/order.service');
 const { forcedDebitWallet } = require('../wallet/wallet.service');
+const executionGate = require('../../shared/security/executionGate');
 const { getProviderAdapter } = require('../providers/adapters/adapter.factory');
 const { Provider } = require('../providers/provider.model');
 const { NotFoundError, BusinessRuleError } = require('../../shared/errors/AppError');
@@ -127,6 +128,7 @@ const getOrderById = async (id) => {
  * @param {string} adminId
  */
 const retryOrder = async (orderId, adminId, auditContext = null) => {
+    executionGate.assertEnabled('Order retries');
     const ctx = resolveAuditContext(adminId, auditContext);
     const order = await Order.findById(orderId)
         .populate({ path: 'productId', populate: { path: 'provider' } });

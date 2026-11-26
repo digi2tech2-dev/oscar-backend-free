@@ -8,16 +8,34 @@ const {
     ConflictError,
     BusinessRuleError,
 } = require('../../shared/errors/AppError');
+const { createAuditLog } = require('../audit/audit.service');
+const { ADMIN_ACTIONS, ENTITY_TYPES } = require('../audit/audit.constants');
+
+const writeProviderAudit = (auditContext, action, provider, metadata = {}) => {
+    if (!auditContext?.actorId) return;
+    createAuditLog({
+        actorId: auditContext.actorId,
+        actorRole: auditContext.actorRole || null,
+        action,
+        entityType: ENTITY_TYPES.PROVIDER,
+        entityId: provider._id,
+        metadata,
+        ipAddress: auditContext.ipAddress || null,
+        userAgent: auditContext.userAgent || null,
+    });
+};
 
 // =============================================================================
 // PROVIDER CRUD
 // =============================================================================
 
-const createProvider = async ({ name, baseUrl, apiKey, apiToken, syncInterval, isActive }) => {
+const createProvider = async ({ name, baseUrl, apiKey, apiToken, syncInterval, isActive }, auditContext = null) => {
     const existing = await Provider.findOne({ name: new RegExp(`^${name}$`, 'i') });
     if (existing) throw new ConflictError(`A provider named '${name}' already exists.`);
 
-    return Provider.create({ name, baseUrl, apiKey, apiToken, syncInterval, isActive });
+    const provider = await Provider.create({ name, baseUrl, apiKey, apiToken, syncInterval, isActive });
+    writeProviderAudit(auditContext, ADMIN_ACTIONS.PROVIDER_CREATED, provider, { name: provider.name, slug: provider.slug, destinationHost: provider.credentialHost });
+    return provider;
 };
 
 const listProviders = async ({ includeInactive = false } = {}) => {
@@ -31,22 +49,25 @@ const getProviderById = async (providerId) => {
     return p;
 };
 
-const updateProvider = async (providerId, updates) => {
-    const allowed = ['name', 'baseUrl', 'apiKey', 'apiToken', 'syncInterval', 'isActive']; 
+const updateProvider = async (providerId, updates, auditContext = null) => {
+    const allowed = ['name', 'apiKey', 'apiToken', 'syncInterval', 'isActive'];
+    if (Object.prototype.hasOwnProperty.call(updates, 'baseUrl')) {
+        throw new BusinessRuleError('Supplier destinations require the out-of-band trust and credential replacement procedure.', 'PROVIDER_DESTINATION_CHANGE_REQUIRES_MIGRATION');
+    }
     const safe = Object.fromEntries(
         Object.entries(updates).filter(([k]) => allowed.includes(k))
     );
 
-    const p = await Provider.findByIdAndUpdate(
-        providerId,
-        { $set: safe },
-        { new: true, runValidators: true }
-    );
+    const p = await Provider.findById(providerId);
     if (!p) throw new NotFoundError('Provider');
+    const before = p.toObject();
+    for (const [key, value] of Object.entries(safe)) p[key] = value;
+    await p.save();
+    writeProviderAudit(auditContext, ADMIN_ACTIONS.PROVIDER_UPDATED, p, { before, after: p.toObject() });
     return p;
 };
 
-const deleteProvider = async (providerId) => {
+const deleteProvider = async (providerId, auditContext = null) => {
     const provider = await Provider.findById(providerId);
     if (!provider) throw new NotFoundError('Provider');
 
@@ -77,6 +98,12 @@ const deleteProvider = async (providerId) => {
     });
 
     await Provider.deleteOne({ _id: providerId });
+
+    writeProviderAudit(auditContext, ADMIN_ACTIONS.PROVIDER_DELETED, provider, {
+        name: provider.name,
+        destinationHost: provider.credentialHost,
+        detachedProducts: detachResult.modifiedCount || 0,
+    });
 
     return {
         provider,

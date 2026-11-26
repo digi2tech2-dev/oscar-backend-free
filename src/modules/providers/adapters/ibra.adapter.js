@@ -14,9 +14,9 @@
  * GET  /client/check?orders=uuid1,id2
  */
 
-const axios = require('axios');
 const crypto = require('crypto');
 const { BaseProviderAdapter } = require('./base.adapter');
+const { createProviderHttpClient } = require('../../../shared/security/providerHttp');
 
 const DEFAULT_TIMEOUT_MS = 180_000;
 const PROVIDER_NAME = 'Ibra';
@@ -102,15 +102,11 @@ const normalizeStatus = (status) => {
 };
 
 const buildClient = (baseURL, token, timeoutMs = DEFAULT_TIMEOUT_MS) => {
-    const client = axios.create({
-        baseURL,
-        timeout: timeoutMs,
-        headers: {
+    const client = createProviderHttpClient(baseURL, {
             'api-token': token,
             'Content-Type': 'application/json',
             Accept: 'application/json',
-        },
-    });
+        }, timeoutMs);
 
     client.interceptors.response.use(
         (res) => res,

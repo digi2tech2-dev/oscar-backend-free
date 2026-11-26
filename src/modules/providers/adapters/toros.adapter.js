@@ -35,23 +35,19 @@
  * The adapter NEVER throws for placeOrder() — all failures return { success: false }.
  */
 
-const axios = require('axios');
 const { BaseProviderAdapter } = require('./base.adapter');
+const { createProviderHttpClient } = require('../../../shared/security/providerHttp');
 
 const DEFAULT_TIMEOUT_MS = 180_000;
 
 // ─── HTTP client factory ──────────────────────────────────────────────────────
 
 const _buildClient = (baseURL, token, timeoutMs = DEFAULT_TIMEOUT_MS) => {
-    const client = axios.create({
-        baseURL,
-        timeout: timeoutMs,
-        headers: {
+    const client = createProviderHttpClient(baseURL, {
             'api-token': token,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-        },
-    });
+        }, timeoutMs);
 
     client.interceptors.response.use(
         (res) => res,

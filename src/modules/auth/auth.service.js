@@ -43,9 +43,12 @@ const { USER_ACTIONS, ENTITY_TYPES, ACTOR_ROLES } = require('../audit/audit.cons
 const TWO_FACTOR_OTP_EXPIRY_MS = 5 * 60 * 1000;
 
 /** Sign full-session JWT for a user. */
-const signToken = (userId, role) =>
-    jwt.sign({ id: userId, role }, config.jwt.secret, {
+const signToken = (userId, role, sessionVersion = 0) =>
+    jwt.sign({ id: userId, role, sv: sessionVersion }, config.jwt.secret, {
         expiresIn: config.jwt.expiresIn,
+        issuer: config.jwt.issuer,
+        audience: config.jwt.audience,
+        algorithm: 'HS256',
     });
 
 /**
@@ -53,9 +56,12 @@ const signToken = (userId, role) =>
  * This token CANNOT be used to access authenticated routes —
  * the authenticate middleware rejects tokens with purpose '2fa-pending'.
  */
-const signTempToken = (userId) =>
-    jwt.sign({ id: userId, purpose: '2fa-pending' }, config.jwt.secret, {
+const signTempToken = (userId, sessionVersion = 0) =>
+    jwt.sign({ id: userId, purpose: '2fa-pending', sv: sessionVersion }, config.jwt.secret, {
         expiresIn: '5m',
+        issuer: config.jwt.issuer,
+        audience: config.jwt.audience,
+        algorithm: 'HS256',
     });
 
 /**
@@ -244,7 +250,7 @@ const login = async ({ email, password }) => {
     // ── Gate 4: Two-Factor Authentication ─────────────────────────────────────
     if (user.isTwoFactorEnabled) {
         const plainOtp = _generateTwoFactorOtp();
-        const tempToken = signTempToken(user._id);
+        const tempToken = signTempToken(user._id, user.sessionVersion || 0);
 
         user.twoFactorOtp = _hashOtp(plainOtp);
         user.twoFactorOtpExpires = new Date(Date.now() + TWO_FACTOR_OTP_EXPIRY_MS);
@@ -265,7 +271,7 @@ const login = async ({ email, password }) => {
     }
 
     // ── 5. Issue full JWT ──────────────────────────────────────────────────────
-    const token = signToken(user._id, user.role);
+    const token = signToken(user._id, user.role, user.sessionVersion || 0);
 
     createAuditLog({
         actorId: user._id,
@@ -366,7 +372,7 @@ const resendVerification = async (email) => {
  * @param {Object} user  — User document from Passport strategy
  * @returns {{ token: string, user: Object, message?: string }}
  */
-const loginWithGoogle = (user) => {
+const loginWithGoogle = async (user) => {
     if (user.status === USER_STATUS.PENDING) {
         // Return a token-less response so the frontend can show the approval message.
         // Some frontends prefer a token even for pending users; adjust as needed.
@@ -383,7 +389,24 @@ const loginWithGoogle = (user) => {
         );
     }
 
-    const token = signToken(user._id, user.role);
+    if (user.isTwoFactorEnabled) {
+        const plainOtp = _generateTwoFactorOtp();
+        user.twoFactorOtp = _hashOtp(plainOtp);
+        user.twoFactorOtpExpires = new Date(Date.now() + TWO_FACTOR_OTP_EXPIRY_MS);
+        await user.save();
+        await emailService.sendTwoFactorOtpEmail(user, plainOtp);
+        createAuditLog({
+            actorId: user._id,
+            actorRole: ACTOR_ROLES[user.role] ?? user.role,
+            action: USER_ACTIONS.LOGIN_SUCCESS,
+            entityType: ENTITY_TYPES.USER,
+            entityId: user._id,
+            metadata: { method: 'google-oauth', twoFactorPending: true },
+        });
+        return { token: null, requires2FA: true, tempToken: signTempToken(user._id, user.sessionVersion || 0), user: user.toSafeObject() };
+    }
+
+    const token = signToken(user._id, user.role, user.sessionVersion || 0);
 
     createAuditLog({
         actorId: user._id,
@@ -547,7 +570,9 @@ const verify2FA = async (tempToken, code) => {
     // 1. Verify the temp token
     let decoded;
     try {
-        decoded = jwt.verify(tempToken, config.jwt.secret);
+        decoded = jwt.verify(tempToken, config.jwt.secret, {
+            algorithms: ['HS256'], issuer: config.jwt.issuer, audience: config.jwt.audience,
+        });
     } catch (err) {
         if (err.name === 'TokenExpiredError') {
             throw new AuthenticationError(
@@ -571,6 +596,7 @@ const verify2FA = async (tempToken, code) => {
     if (user.status !== USER_STATUS.ACTIVE) {
         throw new AuthenticationError('Your account is not active. Contact an administrator.');
     }
+    if (decoded.sv !== (user.sessionVersion || 0)) throw new AuthenticationError('This authentication challenge has been revoked. Please log in again.');
 
     if (!user.isTwoFactorEnabled) {
         throw new AuthenticationError('2FA is not enabled for this account.');
@@ -605,7 +631,7 @@ const verify2FA = async (tempToken, code) => {
     await user.save();
 
     // 4. Issue full JWT
-    const fullToken = signToken(user._id, user.role);
+    const fullToken = signToken(user._id, user.role, user.sessionVersion || 0);
 
     createAuditLog({
         actorId: user._id,

@@ -15,7 +15,7 @@ const catchAsync = require('../../shared/utils/catchAsync');
  * POST /api/providers
  */
 const createProvider = catchAsync(async (req, res) => {
-    const provider = await providerService.createProvider(req.body);
+    const provider = await providerService.createProvider(req.body, req.auditContext);
     sendCreated(res, provider, 'Provider created successfully.');
 });
 
@@ -41,7 +41,7 @@ const getProvider = catchAsync(async (req, res) => {
  * PATCH /api/providers/:id
  */
 const updateProvider = catchAsync(async (req, res) => {
-    const provider = await providerService.updateProvider(req.params.id, req.body);
+    const provider = await providerService.updateProvider(req.params.id, req.body, req.auditContext);
     sendSuccess(res, provider, 'Provider updated.');
 });
 
@@ -49,7 +49,7 @@ const updateProvider = catchAsync(async (req, res) => {
  * DELETE /api/providers/:id
  */
 const deleteProvider = catchAsync(async (req, res) => {
-    const result = await providerService.deleteProvider(req.params.id);
+    const result = await providerService.deleteProvider(req.params.id, req.auditContext);
     sendSuccess(res, result, 'Provider deleted and linked products detached.');
 });
 

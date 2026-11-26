@@ -133,6 +133,10 @@ const userSchema = new mongoose.Schema(
             index: true,
         },
 
+        // Incremented whenever credentials or authorization state changes.
+        // Access tokens carry the version so all prior sessions are revoked.
+        sessionVersion: { type: Number, default: 0 },
+
         /** Admin who approved the account (null until approved). */
         approvedBy: {
             type: mongoose.Schema.Types.ObjectId,
@@ -395,6 +399,9 @@ userSchema.virtual('quantityRemaining').get(function () {
 
 // ─── Pre-save Hook: Hash Password ────────────────────────────────────────────
 userSchema.pre('save', async function (next) {
+    if (this.isModified('password') || this.isModified('role') || this.isModified('status') || this.isModified('permissions') || this.isModified('isTwoFactorEnabled')) {
+        this.sessionVersion = (this.sessionVersion || 0) + 1;
+    }
     // Skip if no password set (OAuth users) or password not modified
     if (!this.password || !this.isModified('password')) return next();
     this.password = await bcrypt.hash(this.password, config.bcrypt.rounds);
@@ -414,6 +421,7 @@ userSchema.methods.toSafeObject = function () {
     delete obj.password;
     delete obj.twoFactorOtp;
     delete obj.twoFactorOtpExpires;
+    delete obj.sessionVersion;
     return obj;
 };
 

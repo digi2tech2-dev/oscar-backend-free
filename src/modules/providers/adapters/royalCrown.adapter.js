@@ -42,8 +42,8 @@
  *   Cancelled  → 'Cancelled'
  */
 
-const axios = require('axios');
 const { BaseProviderAdapter } = require('./base.adapter');
+const { createProviderHttpClient } = require('../../../shared/security/providerHttp');
 
 const DEFAULT_TIMEOUT_MS = 180_000;
 
@@ -58,15 +58,11 @@ const DEFAULT_TIMEOUT_MS = 180_000;
  * @returns {import('axios').AxiosInstance}
  */
 const _buildAxiosClient = (baseURL, token, timeoutMs = DEFAULT_TIMEOUT_MS) => {
-    const client = axios.create({
-        baseURL,
-        timeout: timeoutMs,
-        headers: {
+    const client = createProviderHttpClient(baseURL, {
             'api-token': token,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-        },
-    });
+        }, timeoutMs);
 
     // Response interceptor — convert AxiosError into a plain Error so
     // callers never deal with internal axios structures.

@@ -89,12 +89,37 @@ const googleCallback = catchAsync(async (req, res) => {
 
     // If admin not yet approved — redirect frontend can show "pending" message
     if (!result.token) {
+        if (result.requires2FA) {
+            res.cookie('oauth_2fa', result.tempToken, {
+                httpOnly: true,
+                secure: config.env === 'production',
+                sameSite: config.env === 'production' ? 'none' : 'lax',
+                path: '/api/auth/verify-2fa',
+                maxAge: 5 * 60 * 1000,
+            });
+            return res.redirect(`${frontendBase}/auth?status=requires-2fa`);
+        }
         return res.redirect(`${frontendBase}/auth?status=pending`);
     }
+    // OAuth session is handed off through a short-lived HttpOnly cookie.
+    res.cookie('oauth_session', result.token, {
+        httpOnly: true,
+        secure: config.env === 'production',
+        sameSite: config.env === 'production' ? 'none' : 'lax',
+        path: '/api/auth/oauth-session',
+        maxAge: 60 * 1000,
+    });
+    res.redirect(`${frontendBase}/auth?status=complete`);
+});
 
-    // Redirect with JWT in query param so the SPA can capture it.
-    // FE loginWithGoogle() reads ?token= from window.location.search.
-    res.redirect(`${frontendBase}/auth?token=${result.token}`);
+const exchangeOAuthSession = catchAsync(async (req, res) => {
+    const expectedOrigin = new URL(config.frontend.url).origin;
+    if (req.get('Origin') !== expectedOrigin) return res.status(403).json({ success: false, message: 'Origin is not allowed.' });
+    const cookieToken = String(req.headers.cookie || '').split(';').map((item) => item.trim()).find((item) => item.startsWith('oauth_session='))?.slice('oauth_session='.length);
+    if (!cookieToken) return res.status(401).json({ success: false, message: 'OAuth handoff expired. Please sign in again.' });
+    res.clearCookie('oauth_session', { path: '/api/auth/oauth-session' });
+    res.set('Cache-Control', 'no-store');
+    sendSuccess(res, { token: cookieToken }, 'OAuth session established.');
 });
 
 // ─── Two-Factor Authentication ────────────────────────────────────────────────
@@ -133,8 +158,11 @@ const disable2FA = catchAsync(async (req, res) => {
  * Exchanges a 2FA-pending temp token + email OTP code for a full JWT.
  */
 const verify2FA = catchAsync(async (req, res) => {
-    const { tempToken, code } = req.body;
+    const cookieToken = String(req.headers.cookie || '').split(';').map((item) => item.trim()).find((item) => item.startsWith('oauth_2fa='))?.slice('oauth_2fa='.length);
+    const { code } = req.body;
+    const tempToken = req.body.tempToken || cookieToken;
     const result = await authService.verify2FA(tempToken, code);
+    res.clearCookie('oauth_2fa', { path: '/api/auth/verify-2fa' });
     sendSuccess(res, result, 'Logged in successfully.');
 });
 
@@ -144,6 +172,7 @@ module.exports = {
     verifyEmail,
     resendVerification,
     googleCallback,
+    exchangeOAuthSession,
     generate2FA,
     enable2FA,
     disable2FA,

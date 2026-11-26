@@ -89,6 +89,7 @@ const approveUser = async (targetUserId, adminId, auditContext = null) => {
                 approvedBy: adminId,
                 approvedAt: new Date(),
             },
+            $inc: { sessionVersion: 1 },
             $unset: {
                 emailVerificationToken: '',
                 emailVerificationExpires: '',

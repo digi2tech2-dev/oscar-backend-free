@@ -11,10 +11,12 @@ const isAuthorizedAdmin = async (req) => {
 
     try {
         const token = authorization.slice(7).trim();
-        const decoded = jwt.verify(token, config.jwt.secret);
+        const decoded = jwt.verify(token, config.jwt.secret, {
+            algorithms: ['HS256'], issuer: config.jwt.issuer, audience: config.jwt.audience,
+        });
         if (!decoded?.id || decoded.purpose === '2fa-pending') return false;
-        const user = await User.findById(decoded.id).select('role status').lean();
-        return user?.role === ROLES.ADMIN && user?.status === USER_STATUS.ACTIVE;
+        const user = await User.findById(decoded.id).select('role status sessionVersion').lean();
+        return user?.role === ROLES.ADMIN && user?.status === USER_STATUS.ACTIVE && decoded.sv === (user.sessionVersion || 0);
     } catch {
         return false;
     }
